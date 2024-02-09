@@ -12,7 +12,7 @@ import (
 
 func main() {
 	var counter int = 0
-			// Backup mode
+	// Backup mode
 	// Create a UDP connection for receiving
 	recvAddr, err := net.ResolveUDPAddr("udp", "localhost:20014")
 	if err != nil {
@@ -36,7 +36,7 @@ func main() {
 				// Primary is dead
 				// This program now becomes primary
 				break
-				
+
 			}
 			fmt.Println("Error reading from UDP:", err)
 			return
@@ -44,9 +44,9 @@ func main() {
 		fmt.Printf("Received message from %s: %s\n", addr, string(responseBuf[:n]))
 		counter, _ = strconv.Atoi(string(responseBuf[:n]))
 	}
-	
-			// Primary mode
-	// Execute Backup in a new terminal window
+
+	// Primary mode
+	// Start backup in a new terminal window
 	cmd := exec.Command("gnome-terminal", "--", "go", "run", "Ex4.go")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -76,8 +76,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		counter ++
+		counter++
 	}
 
 }
-
