@@ -92,7 +92,7 @@ func ShouldStop(e elevator.Elevator) bool {
 }
 
 func ShouldClearImmediately(e elevator.Elevator, btn_floor int, btn_type elevio.ButtonType) bool {
-	switch e.config.clearRequestVariant {
+	switch e.Config.ClearRequestVariant {
 	case elevator.CV_All:
 		return e.Floor == btn_floor
 	case elevator.CV_InDirn:
@@ -105,7 +105,7 @@ func ShouldClearImmediately(e elevator.Elevator, btn_floor int, btn_type elevio.
 }
 
 func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
-	switch e.config.clearRequestVariant {
+	switch e.Config.ClearRequestVariant {
 	case elevator.CV_All:
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
 			e.Requests[e.Floor][btn] = false

@@ -49,28 +49,14 @@ func Init(addr string, numFloors int) {
 	_mtx = sync.Mutex{}
 
     // Attempt to establish a network connection to the specified address
-	var err error
+	var err error // outputDevice.MotorDirection(MD_Down)
+	// elevio.SetMotorDirection(elevio.MD_Down)
 	_conn, err = net.Dial("tcp", addr)
 	if err != nil {
 		panic(err.Error())
 	}
 	_initialized = true
 }
-
-// type ElevInputDevice struct {
-// 	FloorSensor   chan int
-// 	RequestButton chan ButtonEvent
-// 	StopButton    chan bool
-// 	Obstruction   chan bool
-// }
-
-// type ElevOutputDevice struct {
-//     FloorIndicator      int
-//     RequestButtonLight  SingleButton
-//     DoorLight           bool
-//     StopButtonLight     bool
-//     MotorDirection      Motordirection
-// }
 
 func SetButtonLamp(floor int, btn ButtonType, val bool){
     write([4]byte{2, byte(btn), byte(floor), toByte(val)}) // Other use this
@@ -92,32 +78,11 @@ func SetStopLamp(value bool) {
 	write([4]byte{5, toByte(value), 0, 0})
 }
 
-// If we make the channels in main, we don't need this
-// func getInputDevice() ElevInputDevice {
-//     return ElevInputDevice {
-//         FloorSensor:   make(chan int),
-//         RequestButton: make(chan ButtonEvent),
-//         StopButton:    make(chan bool)
-//         Obstruction:   make(chan bool),
-//     }
-// }
-
-// Don't know if needed
-// func getOutputDevice() ElevOutputDevice {
-//     return ElevOutputDevice {
-//         FloorIndicator:     setFloorIndicator,
-//         RequestButtonLight: requestButtonLight,
-//         DoorLight:          setDoorOpenLamp,
-//         StopButtonLight:    setStopLamp,
-//         MotorDirection:     setMotorDirection,
-//     }
-// }
-
 func PollFloorSensor(receiver chan<- int) {
 	prev := -1
 	for {
 		time.Sleep(_pollRate)
-		v := getFloor()
+		v := GetFloor()
 		if v != prev && v != -1 {
 			receiver <- v
 		}
@@ -132,7 +97,7 @@ func PollRequestButtons(receiver chan<- ButtonEvent) {
 		for f := 0; f < _numFloors; f++ {
 			for b := ButtonType(0); b < 3; b++ {
 				v := getButton(b, f)
-				if v != prev[f][b] && v != false {
+				if v != prev[f][b] && v {
 					receiver <- ButtonEvent{f, ButtonType(b)}
 				}
 				prev[f][b] = v
@@ -170,7 +135,7 @@ func getButton(button ButtonType, floor int) bool {
 	return toBool(a[1])
 }
 
-func getFloor() int {
+func GetFloor() int {
 	a := read([4]byte{7, 0, 0, 0})
 	if a[1] != 0 {
 		return int(a[2])

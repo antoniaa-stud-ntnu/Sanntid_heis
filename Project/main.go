@@ -1,13 +1,13 @@
 package main
 
 import (
+	"Project/SingleElevator/elevio"
+	"Project/SingleElevator/fsm"
 	"fmt"
 	"time"
-	"Project/SingleElevator/elevio"
 )
 
 func main() {
-
 	elevio.Init("localhost:15657", elevio.N_FLOORS)
 
 	var currentDirn elevio.MotorDirection = elevio.MD_Up
@@ -22,20 +22,32 @@ func main() {
 	go elevio.PollObstructionSwitch(obstrCh)
 	go elevio.PollStopButton(stopCh)
 
+    go fsm.CheckForTimeout()
+
+    if elevio.GetFloor() == -1 {
+        fsm.FsmOnInitBetweenFloors()
+    }
+
+    fsm.InitLights()
+
 	for {
+        fsm.CheckForTimeout()
         select {
         case a := <- buttonsCh:
             fmt.Printf("%+v\n", a)
-            elevio.SetButtonLamp(a.Floor, a.Button, true)
+            //elevio.SetButtonLamp(a.Floor, a.Button, true)
+            fsm.FsmOnRequestButtonPress(a.Floor, a.Button)
             
         case a := <- floorsCh:
+            /*
             fmt.Printf("%+v\n", a)
             if a == elevio.N_FLOORS-1 {
                 currentDirn = elevio.MD_Down
             } else if a == 0 {
                 currentDirn = elevio.MD_Up
             }
-            elevio.SetMotorDirection(currentDirn)
+            elevio.SetMotorDirection(currentDirn)*/
+            fsm.FsmOnFloorArrival(a)
             
         case a := <- obstrCh:
             fmt.Printf("%+v\n", a)
@@ -57,3 +69,13 @@ func main() {
         }
     }
 }
+
+/*
+for {
+    int prev[elevio.N_FLOORS][elevio.N_BUTTONS]
+    for f := 0; f < elevio.N_FLOORS; f++ {     
+        for b := 0; b < elevio.N_BUTTONS; b++ {
+            int v 
+        }
+    }
+}*/

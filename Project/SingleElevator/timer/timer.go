@@ -1,6 +1,7 @@
 package timer
 
 import (
+	
 	"time"
 )
 
@@ -26,3 +27,4 @@ func TimerStop() {
 func TimerTimedOut() bool {
 	return (timerActive && getWallTime() > timerEndTime)
 }
+

@@ -47,7 +47,7 @@ func ebToString(eb ElevatorBehaviour) string {
 
 func dirnToString(dir elevio.MotorDirection) string {
     switch dir {
-    case elevio.MD_up:
+    case elevio.MD_Up:
         return "MD_Up"
     case elevio.MD_Down:
         return "MD_Down"
@@ -70,7 +70,7 @@ func ButtonToString(btn elevio.ButtonType) string {
         return "BT_UNDEFINED"
     }
 }
-
+/*
 func ElevatorPrint(es Elevator) {
 	fmt.Printf(" +--------------------+\n")
 	fmt.Printf(
@@ -99,9 +99,11 @@ func ElevatorPrint(es Elevator) {
 		fmt.Printf("|\n")
 	}
 	fmt.Printf(" +--------------------+\n")
-}
+} 
+*/
 
-func elevatorUninitialized(es Elevator) {
+/*
+func ElevatorUninitialized(es elevator.Elevator) {
 	es.Floor = -1,
 	es.Dirn = elevio.MD_Stop,
 	es.Behaviour = EB_Idle,
@@ -109,4 +111,4 @@ func elevatorUninitialized(es Elevator) {
 		ClearRequestVariant: CV_All,
 		DoorOpenDurationS:  3.0,
 	}
-}
+}*/
