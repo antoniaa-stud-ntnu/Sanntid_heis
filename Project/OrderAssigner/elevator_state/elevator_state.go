@@ -11,8 +11,8 @@ const (
 type HallCallType int
 
 const (
-    up HallCallType = iota
-    down
+    up_hall HallCallType = iota
+    down_hall
 )
 
 type Dirn int

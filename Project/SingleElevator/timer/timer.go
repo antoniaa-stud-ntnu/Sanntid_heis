@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-var timerEndTime float64
-var timerActive bool
+var endTime float64
+var active bool
 
 func getWallTime() float64 {
 	currentTime := time.Now()
@@ -15,16 +15,15 @@ func getWallTime() float64 {
 	return seconds + nanoseconds*1e-9
 }
 
-func TimerStart(duration float64) {
-	timerEndTime = getWallTime() + duration
-	timerActive = true
+func Start(duration float64) {
+	endTime = getWallTime() + duration
+	active = true
 }
 
-func TimerStop() {
-	timerActive = false
+func Stop() {
+	active = false
 }
 
-func TimerTimedOut() bool {
-	return (timerActive && getWallTime() > timerEndTime)
+func TimedOut() bool {
+	return (active && getWallTime() > endTime)
 }
-

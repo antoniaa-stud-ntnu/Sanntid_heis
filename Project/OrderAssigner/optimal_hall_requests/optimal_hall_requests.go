@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"time"
+	"Project/OrderAssigner/elevator_state"
 )
 
 type m_Req struct {
@@ -74,7 +75,7 @@ func performInitialMove(s *State, reqs *[][]m_Req) {
 	case DoorOpen:
 		fmt.Printf("  '%s' closing door at floor %d\n", s.ID, s.State.Floor)
 		s.Time += doorOpenDuration / 2
-		goto case Idle
+		fallthrough //goto case Idle
 	case Idle:
 		for c := 0; c < 2; c++ {
 			if (*reqs)[s.State.Floor][c].Active {
@@ -137,14 +138,35 @@ func performSingleMove(s *State, reqs *[][]m_Req) {
 
 	fmt.Println(withReqs(*s, *reqs, isUnassigned))
 }
-
+// unvisitedAreImmediatelyAssignable checks if all unvisited hall requests can be immediately assigned.
 func unvisitedAreImmediatelyAssignable(reqs [][]m_Req, states []State) bool {
 	for f, reqsAtFloor := range reqs {
-		if len(reqsAtFloor) == 2 {
+		if countActive(reqsAtFloor) == 2 {
 			return false
 		}
 		for _, req := range reqsAtFloor {
-			if isUnassigned(req) {
-				found := false
-				for _, state := range states {
-					if state.State.Floor == f && !
+			if req.isUnassigned() {
+				if !hasElevatorAtFloor(states, f) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// assignImmediate assigns unvisited hall requests to available elevators.
+func assignImmediate(reqs [][]m_Req, states []State) {
+	for f, reqsAtFloor := range reqs {
+		for _, req := range reqsAtFloor {
+			for i, s := range states {
+				if req.isUnassigned() {
+					if s.State.Floor == f && !hasCabRequests(s.State.CabRequests) {
+						req.AssignedTo = s.ID
+						states[i].Time += doorOpenDuration
+					}
+				}
+			}
+		}
+	}
+}
