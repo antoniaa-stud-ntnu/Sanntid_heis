@@ -2,37 +2,37 @@ package elevio
 
 import (
 	"fmt"
+	"net"
 	"sync"
-    "net"
-    "time"
+	"time"
 )
 
-const _pollRate = 20 * time.Millisecond;
+const _pollRate = 20 * time.Millisecond
 
 var _initialized bool = false
 var _numFloors int = 4
-var _mtx sync.Mutex  // A mutex for synchronization
-var _conn net.Conn   // Holds a network connection
+var _mtx sync.Mutex // A mutex for synchronization
+var _conn net.Conn  // Holds a network connection
 
 const (
-	N_FLOORS = 4
+	N_FLOORS  = 4
 	N_BUTTONS = 3
 )
 
 type MotorDirection int
 
 const (
-	MD_Down MotorDirection = -1
-    MD_Stop MotorDirection = 0
-    MD_Up   MotorDirection = 1
+	Down MotorDirection = -1
+	Stop MotorDirection = 0
+	Up   MotorDirection = 1
 )
 
 type ButtonType int
 
 const (
-	BT_HallUp   ButtonType = 0
-    BT_HallDown ButtonType = 1
-    BT_Cab      ButtonType = 2
+	HallUp   ButtonType = 0
+	HallDown ButtonType = 1
+	Cab      ButtonType = 2
 )
 
 type ButtonEvent struct {
@@ -48,9 +48,9 @@ func Init(addr string, numFloors int) {
 	_numFloors = numFloors
 	_mtx = sync.Mutex{}
 
-    // Attempt to establish a network connection to the specified address
-	var err error // outputDevice.MotorDirection(MD_Down)
-	// elevio.SetMotorDirection(elevio.MD_Down)
+	// Attempt to establish a network connection to the specified address
+	var err error // outputDevice.MotorDirection(Down)
+	// elevio.SetMotorDirection(elevio.Down)
 	_conn, err = net.Dial("tcp", addr)
 	if err != nil {
 		panic(err.Error())
@@ -58,12 +58,12 @@ func Init(addr string, numFloors int) {
 	_initialized = true
 }
 
-func SetButtonLamp(floor int, btn ButtonType, val bool){
-    write([4]byte{2, byte(btn), byte(floor), toByte(val)}) // Other use this
+func SetButtonLamp(floor int, btn ButtonType, val bool) {
+	write([4]byte{2, byte(btn), byte(floor), toByte(val)}) // Other use this
 }
 
 func SetMotorDirection(dir MotorDirection) {
-    write([4]byte{1, byte(dir), 0, 0})
+	write([4]byte{1, byte(dir), 0, 0})
 }
 
 func SetFloorIndicator(floor int) {
@@ -157,25 +157,30 @@ func getObstruction() bool {
 func read(in [4]byte) [4]byte {
 	_mtx.Lock()
 	defer _mtx.Unlock()
-	
+
 	_, err := _conn.Write(in[:])
-	if err != nil { panic("Lost connection to Elevator Server") }
-	
+	if err != nil {
+		panic("Lost connection to Elevator Server")
+	}
+
 	var out [4]byte
 	_, err = _conn.Read(out[:])
-	if err != nil { panic("Lost connection to Elevator Server") }
-	
+	if err != nil {
+		panic("Lost connection to Elevator Server")
+	}
+
 	return out
 }
 
 func write(in [4]byte) {
 	_mtx.Lock()
 	defer _mtx.Unlock()
-	
-	_, err := _conn.Write(in[:])
-	if err != nil { panic("Lost connection to Elevator Server") }
-}
 
+	_, err := _conn.Write(in[:])
+	if err != nil {
+		panic("Lost connection to Elevator Server")
+	}
+}
 
 func toByte(a bool) byte {
 	var b byte = 0
