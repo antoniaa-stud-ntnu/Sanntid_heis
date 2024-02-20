@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 )
 
 func TCP_server(hostIP string, hostPort string) {
-	
+
 	// Listen for incoming connections
 	//host := "localhost"
 	//port := "8080"
@@ -43,19 +42,19 @@ func TCP_server(hostIP string, hostPort string) {
 
 func handleClient(conn net.Conn) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
-   
+
 	// Create a buffer to read data into
 	buffer := make([]byte, 1024)
-   
+
 	for {
-	 // Read data from the client
-	 n, err := conn.Read(buffer)
-	 if err != nil {
-	  fmt.Println("Error:", err)
-	  return
-	 }
-   
-	 // Process and use the data (here, we'll just print it)
-	 fmt.Printf("Received: %s\n", buffer[:n])
+		// Read data from the client
+		n, err := conn.Read(buffer)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
+		// Process and use the data (here, we'll just print it)
+		fmt.Printf("Received: %s\n", buffer[:n])
 	}
-   }
+}

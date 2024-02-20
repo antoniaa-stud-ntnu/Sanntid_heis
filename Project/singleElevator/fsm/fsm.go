@@ -6,7 +6,6 @@ import (
 	"Project/singleElevator/requests"
 	"Project/singleElevator/timer"
 	"fmt"
-	"time"
 )
 
 // LOOK HERE
@@ -15,19 +14,21 @@ var elev elevator.Elevator = elevator.InitElev()
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool) {
 
 	for {
-		CheckForTimeout()
 		select {
 		case button := <-buttonsCh:
 			fmt.Printf("%+v\n", button)
 			OnRequestButtonPress(button.Floor, button.Button)
 
 		case floor := <-floorsCh:
-			elevio.SetFloorIndicator(floor)
 			OnFloorArrival(floor)
 
 		case obstr := <-obstrCh:
-			fmt.Printf("%+v\n", obstr)
-			// Må skje noe mer her
+			fmt.Printf("Obstruction is %+v\n", obstr)
+			if obstr {
+				elevio.SetMotorDirection(elevio.Stop)
+			} // else {
+			// elevio.SetMotorDirection(elev.Dirn)
+			//}
 
 		case stop := <-stopCh:
 			fmt.Printf("%+v\n", stop)
@@ -36,8 +37,6 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 					elevio.SetButtonLamp(f, b, false)
 				}
 			}
-		default:
-			time.Sleep(500 * time.Millisecond)
 		}
 
 		if timer.TimedOut() {
