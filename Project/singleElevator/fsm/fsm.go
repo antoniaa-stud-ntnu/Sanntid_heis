@@ -25,6 +25,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 		case obstr := <-obstrCh:
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			if obstr {
+				// Implementer obstruction
 				elevio.SetMotorDirection(elevio.Stop)
 			} // else {
 			// elevio.SetMotorDirection(elev.Dirn)
@@ -38,12 +39,6 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				}
 			}
 		}
-
-		/* Vi kaller jo på denne funksjonen i main.go
-		if timer.TimedOut() {
-			timer.Stop()
-			OnDoorTimeout()
-		}*/
 	}
 }
 
