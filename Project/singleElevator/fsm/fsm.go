@@ -24,10 +24,12 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 
 		case obstr := <-obstrCh:
 			fmt.Printf("Obstruction is %+v\n", obstr)
-			if obstr {
+			OnObstruction(obstr)
 				// Implementer obstruction
-				elevio.SetMotorDirection(elevio.Stop)
-			} // else {
+
+
+			//	elevio.SetMotorDirection(elevio.Stop)
+			 // else {
 			// elevio.SetMotorDirection(elev.Dirn)
 			//}
 
@@ -170,4 +172,16 @@ func OnDoorTimeout() {
 	}
 
 	fmt.Printf("\nNew state:\n")
+}
+
+
+func OnObstruction(obstructionState bool) {
+	switch elev.State {
+	case elevator.DoorOpen:
+		//Figure out how
+		
+	default:
+		break
+	}
+
 }
