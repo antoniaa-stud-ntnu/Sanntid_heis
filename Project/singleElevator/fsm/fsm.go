@@ -39,10 +39,11 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			}
 		}
 
+		/* Vi kaller jo på denne funksjonen i main.go
 		if timer.TimedOut() {
 			timer.Stop()
 			OnDoorTimeout()
-		}
+		}*/
 	}
 }
 
@@ -58,6 +59,16 @@ func CheckForTimeout() bool {
 		return true
 	}
 	return false
+}
+
+func CheckForTimeout_continously() {
+	for {
+		if timer.TimedOut() {
+			timer.Stop()
+			OnDoorTimeout()
+		}
+	}
+
 }
 
 func SetAllLights(es elevator.Elevator) {
@@ -129,6 +140,7 @@ func OnFloorArrival(newFloor int) {
 			elev.State = elevator.DoorOpen
 		}
 	default:
+		break
 	}
 
 	fmt.Printf("\nNew state:\n")

@@ -1,4 +1,4 @@
-package TCP_client
+package tcp_client
 
 import (
 	"fmt"

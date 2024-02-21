@@ -18,7 +18,8 @@ func main() {
 	go elevio.PollObstructionSwitch(obstrCh)
 	go elevio.PollStopButton(stopCh)
 
-	go fsm.CheckForTimeout()
+	//go fsm.CheckForTimeout() Denne kjører bare en gang
+	go fsm.CheckForTimeout_continously() //Denne vil kjøre kontinuerlig
 
 	if elevio.GetFloor() == -1 {
 		fsm.OnInitBetweenFloors()
