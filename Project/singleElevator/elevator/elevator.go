@@ -26,11 +26,12 @@ type Config struct {
 }
 
 type Elevator struct {
-	Floor    int
-	Dirn     elevio.MotorDirection
-	Requests [][]bool
-	State    Behaviour
-	Config   Config
+	Floor    			int
+	Dirn     			elevio.MotorDirection
+	Requests 			[][]bool
+	State    			Behaviour
+	ObstructionActive 	bool
+	Config   			Config
 }
 
 func ebToString(eb Behaviour) string {

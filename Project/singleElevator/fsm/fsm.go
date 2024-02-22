@@ -25,13 +25,6 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 		case obstr := <-obstrCh:
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			OnObstruction(obstr)
-				// Implementer obstruction
-
-
-			//	elevio.SetMotorDirection(elevio.Stop)
-			 // else {
-			// elevio.SetMotorDirection(elev.Dirn)
-			//}
 
 		case stop := <-stopCh:
 			fmt.Printf("%+v\n", stop)
@@ -58,7 +51,7 @@ func CheckForTimeout() bool {
 	return false
 }
 
-func CheckForTimeout_continously() {
+func CheckForDoorTimeOut() {
 	for {
 		if timer.TimedOut() {
 			timer.Stop()
@@ -148,6 +141,10 @@ func OnDoorTimeout() {
 
 	switch elev.State {
 	case elevator.DoorOpen:
+		if elev.ObstructionActive {
+			timer.Start(elev.Config.DoorOpenDuration)
+			break
+		}
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
@@ -174,14 +171,7 @@ func OnDoorTimeout() {
 	fmt.Printf("\nNew state:\n")
 }
 
-
 func OnObstruction(obstructionState bool) {
-	switch elev.State {
-	case elevator.DoorOpen:
-		//Figure out how to handle obstruction
-		timer.Start(elev.Config.DoorOpenDuration) //Sjekk om dette funker??
-	default:
-		break
-	}
-
+	elev.ObstructionActive = obstructionState
 }
+
