@@ -178,8 +178,8 @@ func OnDoorTimeout() {
 func OnObstruction(obstructionState bool) {
 	switch elev.State {
 	case elevator.DoorOpen:
-		//Figure out how
-		
+		//Figure out how to handle obstruction
+		timer.Start(elev.Config.DoorOpenDuration) //Sjekk om dette funker??
 	default:
 		break
 	}
