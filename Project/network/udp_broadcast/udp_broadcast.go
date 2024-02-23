@@ -7,7 +7,9 @@ import (
 )
 
 const broadcastAddress = "255.255.255.255"
-const broadcastPort = "20006"
+const primaryPort = "1001"
+//const backupPort = "1002"
+
 
 func GetLocalIP() net.IP {
     conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -25,8 +27,9 @@ func IPToString(ip net.IP) string {
     return ip.String()
 }
 
-func BroadcastMessage(message string) {
-    broadcastAddr, err := net.ResolveUDPAddr("udp", broadcastAddress+":"+broadcastPort)
+func BroadcastMessage(port string, message string) {
+    fmt.Printf("Broadcasting on port %s, with message: %s\n", port, message)
+    broadcastAddr, err := net.ResolveUDPAddr("udp", broadcastAddress+":"+port)
     if err != nil {
         fmt.Println("Could not resolve broadcastAddr: ", err)
 		return
@@ -46,8 +49,8 @@ func BroadcastMessage(message string) {
 	}
 }
 
-func ListenToBroadcast() {
-    broadcastAddr, err := net.ResolveUDPAddr("udp", broadcastAddress+":"+broadcastPort)
+func ListenToBroadcast(port string) {
+    broadcastAddr, err := net.ResolveUDPAddr("udp", broadcastAddress+":"+port)
     if err != nil {
         fmt.Println("Could not resolve broadcastAddr: ", err)
     }

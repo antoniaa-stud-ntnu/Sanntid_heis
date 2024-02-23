@@ -8,7 +8,14 @@ package primary
 	// Run hall_request_assigner
 	// Send hall_request_assigner output to elevators
 
+// Alive elevators variable, contains ip adresses and port to all alive elevators
 
 // Update all states variable
 
 // Run hall_request_assigner
+
+// Primary init
+	// Initialize all states
+	// go sendIPtoPrimaryBroadcast() //Im alive message
+	// Choose a backup randomly from the alive elevators --> spawn backup. 
+	// 

@@ -39,7 +39,6 @@ var input = HRAInput{
     },
 }
 
-func 
 
 func RunHallRequestAssigner(input HRAInput) map[string][][2]bool {
 
@@ -58,7 +57,7 @@ func RunHallRequestAssigner(input HRAInput) map[string][][2]bool {
         return nil
     }
     
-    ret, err := exec.Command("../hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
+    ret, err := exec.Command("./hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
     if err != nil {
         fmt.Println("exec.Command error: ", err)
         fmt.Println(string(ret))
