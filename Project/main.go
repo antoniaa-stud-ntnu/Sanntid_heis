@@ -3,9 +3,10 @@ package main
 import (
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/fsm"
+	"Project/network/udp_broadcast"
 )
 
-func main() {
+func singleElevatorProcess() {
 	elevio.Init("localhost:15657", elevio.N_FLOORS)
 
 	buttonsCh := make(chan elevio.ButtonEvent)
@@ -28,4 +29,8 @@ func main() {
 	fsm.InitLights()
 
 	fsm.FSM(buttonsCh, floorsCh, obstrCh, stopCh)
+}
+
+func main() {
+	udp_broadcast.ProcessPairInit()
 }
