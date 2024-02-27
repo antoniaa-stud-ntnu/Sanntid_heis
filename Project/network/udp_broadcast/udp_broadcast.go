@@ -8,7 +8,7 @@ import (
 )
 
 const broadcastAddress = "255.255.255.255"
-const primaryPort = "2001"
+const primaryPort = "30006"
 //const backupPort = "1002"
 
 
@@ -44,7 +44,8 @@ func BroadcastMessageLoop(port string, message string) {
     }
     defer conn.Close()
     for {
-        _, err = conn.Write([]byte(IPToString(net.IP(message))))
+        broadcastMessage := []byte(message)
+        _, err = conn.Write(broadcastMessage)
         if err != nil {
             fmt.Println("Could not write to broadcast: ", err)
             return
