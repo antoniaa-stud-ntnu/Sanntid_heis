@@ -8,7 +8,7 @@ import (
 )
 
 const broadcastAddress = "255.255.255.255"
-const primaryPort = "30006"
+const PrimaryPort = "30006"
 //const backupPort = "1002"
 
 
@@ -76,6 +76,7 @@ func ListenToBroadcastUntillTimeout(port string, messageCh chan string) {
         n, addr, err := conn.ReadFromUDP(buffer)
         if err != nil {
 			fmt.Println("Could not read from broadcast connetion: ", err)
+            messageCh <- "No primary"
             break
         }
 
@@ -85,10 +86,5 @@ func ListenToBroadcastUntillTimeout(port string, messageCh chan string) {
     }
 }
 
-func ProcessPairInit(){
-    primaryIPCh := make(chan string)
-    ListenToBroadcastUntillTimeout(primaryPort, primaryIPCh)
-    //localIP_string := IPToString(GetLocalIP())
-    BroadcastMessageLoop(primaryPort, "I'm primary and i'm alive")
-}
+
 
