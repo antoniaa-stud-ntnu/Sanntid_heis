@@ -80,14 +80,14 @@ func ListenToBroadcastUntillTimeout(port string, messageCh chan string) {
 
         message := string(buffer[:n])
         log.Printf("Received broadcast message from %s: %s", addr.String(), message)
-        messageCh <- message
+        messageCh <- addr.String()
     }
 }
 
 func ProcessPairInit(){
     primaryIPCh := make(chan string)
     ListenToBroadcastUntillTimeout(primaryPort, primaryIPCh)
-    localIP_string := IPToString(GetLocalIP())
-    BroadcastMessageLoop(primaryPort, localIP_string)
+    //localIP_string := IPToString(GetLocalIP())
+    BroadcastMessageLoop(primaryPort, "I'm primary and i'm alive")
 }
 
