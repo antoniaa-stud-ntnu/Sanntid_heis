@@ -3,7 +3,7 @@ package main
 import (
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/fsm"
-	"Project/network/udp_broadcast"
+	"Project/network/Network-go/network/peers"
 )
 
 // https://prod.liveshare.vsengsaas.visualstudio.com/join?6B2C280CB36014FF1458874B01B2EFC841D0
@@ -14,6 +14,7 @@ func singleElevatorProcess() {
 	floorsCh := make(chan int)
 	obstrCh := make(chan bool)
 	stopCh := make(chan bool)
+	peerUpdateCh := make(chan peers.PeerUpdate)
 
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
@@ -29,9 +30,13 @@ func singleElevatorProcess() {
 
 	fsm.InitLights()
 
-	fsm.FSM(buttonsCh, floorsCh, obstrCh, stopCh)
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, stopCh)
 }
 
 func main() {
-	udp_broadcast.ProcessPairInit()
+	//udp_broadcast.ProcessPairInit()
+	singleElevatorProcess()
+	for {
+		select {}
+	}
 }

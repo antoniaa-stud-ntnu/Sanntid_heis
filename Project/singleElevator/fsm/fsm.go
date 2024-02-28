@@ -11,21 +11,21 @@ import (
 // LOOK HERE
 var elev elevator.Elevator = elevator.InitElev()
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool) {
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, MBDCh chan elevator.MasterBackupDummy) {
 
 	for {
 		select {
 		case button := <-buttonsCh:
 			fmt.Printf("%+v\n", button)
 			OnRequestButtonPress(button.Floor, button.Button)
-
+			elevator.ElevatorPrint(elev)
 		case floor := <-floorsCh:
 			OnFloorArrival(floor)
-
+			elevator.ElevatorPrint(elev)
 		case obstr := <-obstrCh:
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			OnObstruction(obstr)
-
+			elevator.ElevatorPrint(elev)
 		case stop := <-stopCh:
 			fmt.Printf("%+v\n", stop)
 			for f := 0; f < elevio.N_FLOORS; f++ {
@@ -33,6 +33,9 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 					elevio.SetButtonLamp(f, b, false)
 				}
 			}
+			elevator.ElevatorPrint(elev)
+		case MBD_mode := <- MBDCh:
+			elev.MBD = MBD_mode
 		}
 	}
 }
@@ -134,6 +137,7 @@ func OnFloorArrival(newFloor int) {
 	}
 
 	fmt.Printf("\nNew state:\n")
+	//Send state to master
 }
 
 func OnDoorTimeout() {
@@ -169,6 +173,7 @@ func OnDoorTimeout() {
 	}
 
 	fmt.Printf("\nNew state:\n")
+	//Send state to master
 }
 
 func OnObstruction(obstructionState bool) {

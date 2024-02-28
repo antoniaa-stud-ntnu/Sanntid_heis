@@ -5,6 +5,14 @@ import (
 	"fmt"
 )
 
+type MasterBackupDummy int
+
+const (
+	Master MasterBackupDummy = 0
+	Backup MasterBackupDummy = 1
+	Dummy MasterBackupDummy = 2
+)
+
 type Behaviour int
 
 const (
@@ -31,6 +39,7 @@ type Elevator struct {
 	Requests 			[][]bool
 	State    			Behaviour
 	ObstructionActive 	bool
+	MBD					MasterBackupDummy
 	Config   			Config
 }
 
@@ -112,13 +121,15 @@ func InitElev() Elevator {
 		}
 	}
 	return Elevator{
-		Floor:    -1,
-		Dirn:     elevio.Stop,
-		Requests: requests,
-		State:    Idle,
-		Config: Config{
+		Floor:    			-1,
+		Dirn:     			elevio.Stop,
+		Requests: 			requests,
+		State:    			Idle,
+		ObstructionActive: 	false,
+		MBD: 				2,
+		Config: 			Config{
 			ClearRequestVariant: CV_All,
 			DoorOpenDuration:    3.0,
-		},
+							},
 	}
 }
