@@ -26,6 +26,7 @@ import (
 // go sendIPtoPrimaryBroadcast() //Im alive message
 // Choose a backup randomly from the alive elevators --> spawn backup.
 //
+
 func PrimaryHandler(peerUpdateCh chan peers.PeerUpdate, MBDCh chan elevator.MasterBackupDummy) {
 	
 	// Hver gang det skjer en endring av antall heiser kalles denne
@@ -45,28 +46,98 @@ func PrimaryHandler(peerUpdateCh chan peers.PeerUpdate, MBDCh chan elevator.Mast
 	for {
 		select {
 		case p := <- peerUpdateCh:
+			thisID = getThisID()
 			peerIDs = peerIDfromString(p.Peers)
 			sort.Ints(peerIDs) //The lowest ID is always the primary and backup is next
 			masterID = peerIDs[0]
 			backupID = peerIDs[1]
-			if len(p.Lost) == 0 {
-				lostID := strconv.Atoi(p.Lost)
-				if lostID < masterID { //Master lost, backup take over
-					if getThisID() == masterID {
-						MBDCh <- elevator.MasterBackupDummy.Master
-					} else if getThisID() == backupID {
-						MBDCh <- elevator.MasterBackupDummy.Backup
-					} 
-				} else if lostID < backupID { //Master intact, but backup lost
-					if getThisID() == backupID {
-						MBDCh <- elevator.MasterBackupDummy.Backup
-					} 
+
+			handleNodeChange := func(nodeID int, role elevator.MasterBackupDummy) {
+				if nodeID == thisID {
+					MBDCh <- role
 				}
+			}
+
+			if len(p.Lost) > 0 {
+				lostID := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
+				if lostID < masterID { //Master lost, backup take over
+					handleNodeChange(masterID, elevator.MasterBackupDummy.Master)
+					handleNodeChange(backupID, elevator.MasterBackupDummy.Backup)
+				} else if lostID < backupID { //Master intact, but backup lost
+					handleNodeChange(backupID, elevator.MasterBackupDummy.Backup)
+				}
+			} 
+			if p.New != "" {
+				newID := strconv.Atoi(p.New)
+				if newID  == masterID {
+					handleNodeChange(masterID, elevator.MasterBackupDummy.Master)
+					handleNodeChange(backupID, elevator.MasterBackupDummy.Backup)
+				} else if newID == backupID { //Master intact, but backup lost
+					handleNodeChange(backupID, elevator.MasterBackupDummy.Backup)
+				} 
 			}
 			
 		}
 	}
 }
+/*
+func PrimaryHandler(peerUpdateCh chan peers.PeerUpdate, MBDCh chan elevator.MasterBackupDummy) {
+	
+	// Hver gang det skjer en endring av antall heiser kalles denne
+
+	// If one connection lost:
+		// If master is lost
+			// Backup take over
+		// else (backup lost)
+			// make a new backup
+		// else (dummy elevator)
+			// don't care
+	// If new connection:
+		// If the new elevator is master (and there are two masters now):
+			// deside which elevator is master
+		// else
+			// master is starting a TCP conntection to the dummy elevator
+	for {
+		select {
+		case p := <- peerUpdateCh:
+			thisID = getThisID()
+			peerIDs = peerIDfromString(p.Peers)
+			sort.Ints(peerIDs) //The lowest ID is always the primary and backup is next
+			masterID = peerIDs[0]
+			backupID = peerIDs[1]
+			if len(p.Lost) > 0 {
+				lostID := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
+				if lostID < masterID { //Master lost, backup take over
+					if thisID == masterID {
+						MBDCh <- elevator.MasterBackupDummy.Master
+					} else if thisID == backupID {
+						MBDCh <- elevator.MasterBackupDummy.Backup
+					} 
+				} else if lostID < backupID { //Master intact, but backup lost
+					if thisID == backupID {
+						MBDCh <- elevator.MasterBackupDummy.Backup
+					} 
+				}
+			} 
+			if p.New != "" {
+				newID := strconv.Atoi(p.New)
+				if newID  == masterID {
+					if thisID == masterID {
+						MBDCh <- elevator.MasterBackupDummy.Master
+					} else if thisID == backupID {
+						MBDCh <- elevator.MasterBackupDummy.Backup
+					} 
+				} else if newID == backupID { //Master intact, but backup lost
+					if thisID == backupID {
+						MBDCh <- elevator.MasterBackupDummy.Backup
+					} 
+				} 
+			}
+			
+		}
+	}
+}*/
+
 
 func peerIDfromString (Peers []string) PeerIDs []int {
 	var t2 = []int{}
@@ -90,3 +161,6 @@ func getThisID () thisID int {
 	id := fmt.Sprintf("%s-%d", localIP, os.Getpid())
 	return strconv.Atoi(id) //Returning id as int
 }
+
+
+
