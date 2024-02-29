@@ -93,17 +93,3 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 	}
 }
 
-/*
-func peerIDfromString(Peers []string)  ([]int) {
-	var t2 = []int{}
-
-    for _, i := range Peers {
-        j, err := strconv.Atoi(i)
-        if err != nil {
-            panic(err)
-        }
-        t2 = append(t2, j)
-    }
-	return t2
-}*/
-
