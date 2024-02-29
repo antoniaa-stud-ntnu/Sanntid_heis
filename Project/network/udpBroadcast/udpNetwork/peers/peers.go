@@ -1,7 +1,7 @@
 package peers
 
 import (
-	"Network-go/network/conn"
+	"Project/network/udpBroadcast/udpNetwork/conn"
 	"fmt"
 	"net"
 	"sort"

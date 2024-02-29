@@ -1,7 +1,7 @@
 package bcast
 
 import (
-	"Network-go/network/conn"
+	"Project/network/udpBroadcast/udpNetwork/conn"
 	"encoding/json"
 	"fmt"
 	"net"

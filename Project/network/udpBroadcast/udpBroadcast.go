@@ -1,12 +1,11 @@
-package main
+package udpBroadcast
 
 import (
-	"Network-go/network/bcast"
-	"Network-go/network/localip"
-	"Network-go/network/peers"
+	"Project/network/udpBroadcast/udpNetwork/bcast"
+	"Project/network/udpBroadcast/udpNetwork/localip"
+	"Project/network/udpBroadcast/udpNetwork/peers"
 	"flag"
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -18,7 +17,7 @@ type HelloMsg struct {
 	Iter    int
 }
 
-func main() {
+func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run main.go -id=our_id`
 	var id string
@@ -34,7 +33,8 @@ func main() {
 			fmt.Println(err)
 			localIP = "DISCONNECTED"
 		}
-		id = fmt.Sprintf("peer-%s-%d", localIP, os.Getpid())
+		//id = fmt.Sprintf("%s-%d", localIP, os.Getpid())
+		id = fmt.Sprintf("%s", localIP)
 	}
 
 	// We make a channel for receiving updates on the id's of the peers that are
@@ -69,6 +69,7 @@ func main() {
 	for {
 		select {
 		case p := <-peerUpdateCh:
+			peerUpdateToPrimaryHandlerCh <- p
 			fmt.Printf("Peer update:\n")
 			fmt.Printf("  Peers:    %q\n", p.Peers)
 			fmt.Printf("  New:      %q\n", p.New)

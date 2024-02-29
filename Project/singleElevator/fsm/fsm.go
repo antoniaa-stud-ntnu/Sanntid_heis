@@ -5,14 +5,16 @@ import (
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/requests"
 	"Project/singleElevator/timer"
+	"net"
 	"fmt"
 )
 
 // LOOK HERE
 var elev elevator.Elevator = elevator.InitElev()
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, MBDCh chan elevator.MasterBackupDummy) {
-
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, MBDCh chan elevator.MasterBackupDummyType, primaryIPCh chan net.IP) {
+	masterIP := <- primaryIPCh
+	fmt.Printf("MasterIP is %s\n", masterIP)
 	for {
 		select {
 		case button := <-buttonsCh:

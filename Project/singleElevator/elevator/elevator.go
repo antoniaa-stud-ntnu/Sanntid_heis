@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-type MasterBackupDummy int
+type MasterBackupDummyType int
 
 const (
-	Master MasterBackupDummy = 0
-	Backup MasterBackupDummy = 1
-	Dummy MasterBackupDummy = 2
+	Master 	MasterBackupDummyType = 0
+	Backup 	MasterBackupDummyType = 1
+	Dummy 	MasterBackupDummyType = 2
 )
 
 type Behaviour int
@@ -39,7 +39,7 @@ type Elevator struct {
 	Requests 			[][]bool
 	State    			Behaviour
 	ObstructionActive 	bool
-	MBD					MasterBackupDummy
+	MBD					MasterBackupDummyType
 	Config   			Config
 }
 
@@ -109,6 +109,7 @@ func ElevatorPrint(es Elevator) {
 		}
 		fmt.Printf("|\n")
 	}
+	fmt.Printf("|MBD: %d\n", es.MBD)
 	fmt.Printf(" +--------------------+\n")
 }
 
