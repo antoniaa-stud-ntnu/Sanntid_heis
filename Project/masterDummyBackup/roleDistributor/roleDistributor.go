@@ -49,7 +49,6 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			backupIP := net.IP{} //Backup is empty IP if there is only one peer
 			if len(sortedIPs) > 1 {
 				backupIP = sortedIPs[1]
-				fmt.Printf("I am saving backupID")
 			} 
 			
 			PrimaryIPCh <- masterIP //Sendes "IP-ProsessID" on channel, to be used in MBD_FSM
