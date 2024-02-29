@@ -38,6 +38,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			elevator.ElevatorPrint(elev)
 		case MBD_mode := <- MBDCh:
 			elev.MBD = MBD_mode
+			fmt.Println("In FSM, Changed MBD mode to ", MBD_mode)
 		}
 	}
 }
