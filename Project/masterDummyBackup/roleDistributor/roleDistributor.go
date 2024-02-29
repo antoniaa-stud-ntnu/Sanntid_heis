@@ -66,16 +66,16 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				//if lostIP < masterIP { //Master lost, backup take over
 				fmt.Printf("I am inside len(p.lost) > 0 \n")
 				if bytes.Compare(lostIP, masterIP) == -1 { //Master lost, backup take over
-					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master")
+					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
 					changeNodeRole(masterIP, 0)
 					changeNodeRole(backupIP, 1)
 				} else if bytes.Compare(lostIP, backupIP) == -1 { //Master intact, but backup lost
-					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup")
+					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
 					changeNodeRole(backupIP, 1)
 				}
 			} 
 			if p.New != "" {
-				fmt.Println("I am inside new peer handler")
+				fmt.Println("I am inside new peer handler\n")
 				newID := net.ParseIP(p.New)
 				if newID.Equal(masterIP) { //New master
 					changeNodeRole(masterIP, 0)
