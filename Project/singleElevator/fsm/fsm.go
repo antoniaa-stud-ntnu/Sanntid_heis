@@ -13,8 +13,7 @@ import (
 var elev elevator.Elevator = elevator.InitElev()
 
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, MBDCh chan elevator.MasterBackupDummyType, primaryIPCh chan net.IP) {
-	masterIP := <- primaryIPCh
-	fmt.Printf("MasterIP is %s\n", masterIP)
+	
 	for {
 		select {
 		case button := <-buttonsCh:
@@ -39,7 +38,10 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 		case MBD_mode := <- MBDCh:
 			elev.MBD = MBD_mode
 			fmt.Println("In FSM, Changed MBD mode to ", MBD_mode)
+		case masterIP := <- primaryIPCh:
+			fmt.Printf("MasterIP is %s\n", masterIP)
 		}
+		
 	}
 }
 

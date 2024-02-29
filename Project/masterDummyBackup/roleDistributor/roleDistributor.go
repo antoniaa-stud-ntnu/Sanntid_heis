@@ -65,7 +65,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				//lostID, _ := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
 				lostIP := net.ParseIP(p.Lost[0])
 				//if lostIP < masterIP { //Master lost, backup take over
-				fmt.Printf("I am inside len(p.lost) > 0")
+				fmt.Printf("I am inside len(p.lost) > 0 \n")
 				if bytes.Compare(lostIP, masterIP) == -1 { //Master lost, backup take over
 					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master")
 					changeNodeRole(masterIP, 0)
@@ -76,6 +76,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				}
 			} 
 			if p.New != "" {
+				fmt.Println("I am inside new peer handler")
 				newID := net.ParseIP(p.New)
 				if newID.Equal(masterIP) { //New master
 					changeNodeRole(masterIP, 0)
