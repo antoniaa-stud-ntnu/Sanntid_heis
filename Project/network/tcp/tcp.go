@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func TCP_server(hostIP string, hostPort string) {
+func TCP_server(hostIP string, hostPort string. handleClient func) {
 
 	// Listen for incoming connections
 	//host := "localhost"
@@ -40,10 +40,10 @@ func TCP_server(hostIP string, hostPort string) {
 	}
 }
 
-func TCP_client(sendingData string) { 
+func TCP_client(sendingData string, host string, port string) { 
     // Connect to the server
-	host := "localhost"
-	port := "8080"
+	// host := "localhost"
+	// port := "8080"
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", host+":"+port)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)

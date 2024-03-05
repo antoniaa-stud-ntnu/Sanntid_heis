@@ -8,9 +8,9 @@ import (
 	"os"
 )
 
-const masterPort = 27300
-const backupPort = 27301
-const dummyPort = 27302
+const MasterPort = 27300
+const BackupPort = 27301
+const DummyPort = 27302
 
 // Dummy init
 	// Elevator init
@@ -25,26 +25,32 @@ const dummyPort = 27302
 // Send Im alive message to primary (TCP)
 
 
-// Do as primary says
 
 
+func OnDummy() {
+	singleElevatorProcess()
+	//Send full state to master
+	
+	fmt.Println("Dummy elevator is running")
+}
 
 
-func MBD_FSM (MBDCh chan int, PrimaryIPCh chan string) {
+func MBD_FSM (MBDCh chan string, PrimaryIPCh chan string) {
 	PrimaryIP := <- PrimaryIPCh
+	println("Primary IP is:", PrimaryIP)
 	MBD := <- MBDCh
 	for {
 		switch MBD {
-		case elevator.MasterBackupDummy.Master:
+		case "Master":
 			//Do master stuff
-			tcp.TCP_server("localhost", masterPort)
-		case elevator.MasterBackupDummy.Backup:
+			tcp.TCP_server("localhost", MasterPort)
+		case "Backup":
 			//Do backup stuff
-		case elevator.MasterBackupDummy.Dummy:
+			tcp.TCP_client
+		case "Dummy":
 
 			//Do dummy stuff
 			//Send state update to master
-
 			//Listen to master
 
 		}

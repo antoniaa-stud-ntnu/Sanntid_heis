@@ -5,13 +5,6 @@ import (
 	"fmt"
 )
 
-type MasterBackupDummyType int
-
-const (
-	Master 	MasterBackupDummyType = 0
-	Backup 	MasterBackupDummyType = 1
-	Dummy 	MasterBackupDummyType = 2
-)
 
 type Behaviour int
 
@@ -39,16 +32,15 @@ type Elevator struct {
 	Requests 			[][]bool
 	State    			Behaviour
 	ObstructionActive 	bool
-	MBD					MasterBackupDummyType
 	Config   			Config
 }
 
-func ebToString(eb Behaviour) string {
+func EbToString(eb Behaviour) string {
 	switch eb {
 	case Idle:
-		return "Idle"
+		return "idle"
 	case DoorOpen:
-		return "DoorOpen"
+		return "doorOpen"
 	case Moving:
 		return "moving"
 	default:
@@ -56,7 +48,7 @@ func ebToString(eb Behaviour) string {
 	}
 }
 
-func dirnToString(dir elevio.MotorDirection) string {
+func DirnToString(dir elevio.MotorDirection) string {
 	switch dir {
 	case elevio.Up:
 		return "Up"
@@ -89,8 +81,8 @@ func ElevatorPrint(es Elevator) {
 			"  |dirn  = %-12.12s|\n"+
 			"  |behav = %-12.12s|\n",
 		es.Floor,
-		dirnToString(es.Dirn),
-		ebToString(es.State),
+		DirnToString(es.Dirn),
+		EbToString(es.State),
 	)
 	fmt.Printf(" +--------------------+\n")
 	fmt.Printf("  |  | up  | dn  | cab |\n")
@@ -99,7 +91,46 @@ func ElevatorPrint(es Elevator) {
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
 			if (f == elevio.N_FLOORS-1 && btn == int(elevio.HallUp)) || (f == 0 && btn == int(elevio.HallDown)) {
 				fmt.Printf("|     ")
-			} else {
+			} else {type HRAElevState struct {
+				Behavior    string      `json:"behaviour"`
+				Floor       int         `json:"floor"` 
+				Direction   string      `json:"direction"`
+				CabRequests []bool      `json:"cabRequests"`
+			}
+			
+			var elev elevator.Elevator = elevator.InitElev()
+			var hraElevState HRAElevState
+			
+			
+			var hraHallReq [][2]bool
+			
+			func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
+				hraElevState.Direction = elevator.DirnToString(elev.Dirn)
+				hraElevState.Behavior = elevator.EbToString(elev.State)
+				for {
+					select {
+					case button := <-buttonsCh:
+						//FSM(<- button, )
+						if button.ButtonType == elevio.Cab{
+							hraElevState.CabRequests[button.f] = true
+						} else if button.ButtonType == elevio.HallUp {
+							hraHallReq[button.f][0] = true
+						} else if button.ButtonType == elevio.HallDown {
+							hraHallReq[button.f][1] = true
+						} // Kall paa sendElevUpdate til master
+						sendElevState()
+						
+					case floor := <-floorsCh:
+						hraElevState.Floor = floor
+						// Kall paa sendElevUpdate til master
+					//case obstr := <-obstrCh:
+						//fmt.Printf("Obstruction is %+v\n", obstr)
+						//OnObstruction(obstr)
+						//elevator.ElevatorPrint(elev)
+					}
+				} 
+				
+			}
 				if es.Requests[f][btn] {
 					fmt.Printf("|  #  ")
 				} else {
@@ -109,7 +140,6 @@ func ElevatorPrint(es Elevator) {
 		}
 		fmt.Printf("|\n")
 	}
-	fmt.Printf("|MBD: %d\n", es.MBD)
 	fmt.Printf(" +--------------------+\n")
 }
 
@@ -127,7 +157,6 @@ func InitElev() Elevator {
 		Requests: 			requests,
 		State:    			Idle,
 		ObstructionActive: 	false,
-		MBD: 				2,
 		Config: 			Config{
 			ClearRequestVariant: CV_All,
 			DoorOpenDuration:    3.0,

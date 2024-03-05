@@ -10,7 +10,7 @@ import (
 	"sort"
 )
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan elevator.MasterBackupDummyType, PrimaryIPCh chan net.IP) {
+func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan string, PrimaryIPCh chan net.IP) {
 
 	// Hver gang det skjer en endring av antall heiser kalles denne
 
@@ -51,7 +51,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 
 			PrimaryIPCh <- masterIP //Sendes masters IP adress on channel, to be used in MBD_FSM
 
-			changeNodeRole := func(nodeID net.IP, role elevator.MasterBackupDummyType) {
+			changeNodeRole := func(nodeID net.IP, role string) {
 				if nodeID.Equal(localIP) {
 					fmt.Printf("I am now changing role to %v\n", role)
 					MBDCh <- role
@@ -60,7 +60,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 
 			setDummies := func(sortedIPs []net.IP) {
 				for dummy := 2; dummy < len(sortedIPs); dummy++ {
-					changeNodeRole(sortedIPs[dummy], 2)
+					changeNodeRole(sortedIPs[dummy], "Dummy")
 				}
 			}
 
@@ -70,12 +70,12 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				fmt.Printf("I am inside len(p.lost) > 0 \n")
 				if bytes.Compare(lostIP, masterIP) == -1 { //Master lost, backup take over
 					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
-					changeNodeRole(masterIP, 0)
-					changeNodeRole(backupIP, 1)
+					changeNodeRole(masterIP, "Master")
+					changeNodeRole(backupIP, "Backup")
 					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
 				} else if bytes.Compare(lostIP, backupIP) == -1 { //Master intact, but backup lost
 					fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
-					changeNodeRole(backupIP, 1)
+					changeNodeRole(backupIP, "Backup")
 					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
 				}
 			}
@@ -83,14 +83,15 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				fmt.Println("I am inside new peer handler")
 				newID := net.ParseIP(p.New)
 				if newID.Equal(masterIP) { //New master
-					changeNodeRole(masterIP, 0)
-					changeNodeRole(backupIP, 1)
+					changeNodeRole(masterIP, "Master")
+					changeNodeRole(backupIP, "Backup")
 				} else if newID.Equal(backupIP) { //New backup
-					changeNodeRole(backupIP, 1)
+					changeNodeRole(backupIP, "Backup")
 				}
 
 				if !newID.Equal(masterIP) && !newID.Equal(backupIP) { //New dummy
-					changeNodeRole(newID, 2)
+					//changeNodeRole(newID, 2)
+					setDummies(sortedIPs)
 				}
 			}
 

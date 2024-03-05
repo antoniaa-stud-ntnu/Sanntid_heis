@@ -1,6 +1,12 @@
 package master
 
-
+import (
+	"encoding/json"
+	"Project/network/tcp"
+	"Project/masterDummyBackup/roleDistributor"
+	"Project/masterDummyBackup/dummy"
+	"Project/singleElevator/elevator"
+)
 
 // Connection with elevators
 // Needs to update state variable when new information is available - retry if failed
@@ -22,3 +28,41 @@ package master
 // Choose a backup randomly from the alive elevators --> spawn backup.
 //
 
+
+//ret, err := exec.Command("../hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
+
+type HRAElevState struct {
+    Behavior    string      `json:"behaviour"`
+    Floor       int         `json:"floor"` 
+    Direction   string      `json:"direction"`
+    CabRequests []bool      `json:"cabRequests"`
+}
+
+type HRAInput struct {
+    HallRequests    [][2]bool                   `json:"hallRequests"`
+    States          map[string]HRAElevState     `json:"states"`
+}
+
+var hraInput HRAInput
+var hraMasterState HRAElevState
+
+func OnMaster() {
+	// Connection with elevators
+	tcp.handleClient()
+	tcp.TCP_server(MasterIP, MasterPort)
+
+	// Update state variable when new information is available - retry if failed
+
+	// Send information to backup
+	sendToBackup()
+	
+}
+
+func sendElevState() {
+	stateBytes, _ := json.Marshal(hraMasterState)
+	TCP_client(stateBytes, MasterIP, MasterPort)
+}
+
+func sendToBackup() {
+
+}

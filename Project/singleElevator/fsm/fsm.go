@@ -5,20 +5,64 @@ import (
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/requests"
 	"Project/singleElevator/timer"
-	"net"
+	"Project/singleElevator/timer"
+	//"command-line-arguments/home/student/Heis2/Sanntid_heis/Sanntid_heis/Project/network/tcp/tcp.go"
+	"encoding/json"
 	"fmt"
+	"net"
 )
+type HRAElevState struct {
+    Behavior    string      `json:"behaviour"`
+    Floor       int         `json:"floor"` 
+    Direction   string      `json:"direction"`
+    CabRequests []bool      `json:"cabRequests"`
+}
 
-// LOOK HERE
 var elev elevator.Elevator = elevator.InitElev()
+var hraElevState HRAElevState
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, MBDCh chan elevator.MasterBackupDummyType, primaryIPCh chan net.IP) {
+
+var hraHallReq [][2]bool
+
+func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
+	hraElevState.Direction = elevator.DirnToString(elev.Dirn)
+	hraElevState.Behavior = elevator.EbToString(elev.State)
+	for {
+		select {
+		case button := <-buttonsCh:
+			//FSM(<- button, )
+			if button.ButtonType == elevio.Cab{
+				hraElevState.CabRequests[button.f] = true
+			} else if button.ButtonType == elevio.HallUp {
+				hraHallReq[button.f][0] = true
+			} else if button.ButtonType == elevio.HallDown {
+				hraHallReq[button.f][1] = true
+			} // Kall paa sendElevUpdate til master
+			sendElevState()
+			
+		case floor := <-floorsCh:
+			hraElevState.Floor = floor
+			// Kall paa sendElevUpdate til master
+		//case obstr := <-obstrCh:
+			//fmt.Printf("Obstruction is %+v\n", obstr)
+			//OnObstruction(obstr)
+			//elevator.ElevatorPrint(elev)
+		}
+	} 
+	
+}
+
+// Endre slik at det ikke er FSM som tar inn channels som input, skal kunne kalles dersom master gir deg beskjed om det
+// Trenger altsaa et mellomledd, slik at statene sendes til master dersom noe skjer paa channels.
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, primaryIPCh chan net.IP) {
 	
 	for {
 		select {
 		case button := <-buttonsCh:
 			fmt.Printf("%+v\n", button)
 			OnRequestButtonPress(button.Floor, button.Button)
+			//Send button press to master
+			//Skru på lys når master gir svar
 			elevator.ElevatorPrint(elev)
 		case floor := <-floorsCh:
 			OnFloorArrival(floor)
@@ -35,9 +79,6 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				}
 			}
 			elevator.ElevatorPrint(elev)
-		case MBD_mode := <- MBDCh:
-			elev.MBD = MBD_mode
-			fmt.Println("In FSM, Changed MBD mode to ", MBD_mode)
 		case masterIP := <- primaryIPCh:
 			fmt.Printf("MasterIP is %s\n", masterIP)
 		}

@@ -18,7 +18,6 @@ func singleElevatorProcess() {
 	buttonsCh := make(chan elevio.ButtonEvent)
 	floorsCh := make(chan int)
 	obstrCh := make(chan bool)
-	stopCh := make(chan bool)
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	MBDCh := make(chan elevator.MasterBackupDummyType)
@@ -27,7 +26,6 @@ func singleElevatorProcess() {
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
-	go elevio.PollStopButton(stopCh)
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, primaryIPCh)
 
@@ -39,8 +37,9 @@ func singleElevatorProcess() {
 	}
 
 	fsm.InitLights()
+	//go MBD_FSM(MBDCh, primaryIPCh)
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, MBDCh, primaryIPCh)
 
-	go fsm.FSM(buttonsCh, floorsCh, obstrCh, stopCh, MBDCh, primaryIPCh)
 }
 
 func main() {
