@@ -10,22 +10,8 @@ import (
 	"sort"
 )
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan string, PrimaryIPCh chan net.IP) {
+func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan string, SortedAliveElevIPsCh chan []net.IP) {
 
-	// Hver gang det skjer en endring av antall heiser kalles denne
-
-	// If one connection lost:
-	// If master is lost
-	// Backup take over
-	// else (backup lost)
-	// make a new backup
-	// else (dummy elevator)
-	// don't care
-	// If new connection:
-	// If the new elevator is master (and there are two masters now):
-	// deside which elevator is master
-	// else
-	// master is starting a TCP conntection to the dummy elevator
 	for {
 		select {
 		case p := <-peerUpdateToRoleDistributorCh:
@@ -49,7 +35,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				backupIP = sortedIPs[1]
 			}
 
-			PrimaryIPCh <- masterIP //Sendes masters IP adress on channel, to be used in MBD_FSM
+			SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
 
 			changeNodeRole := func(nodeID net.IP, role string) {
 				if nodeID.Equal(localIP) {
@@ -98,3 +84,19 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		}
 	}
 }
+
+
+	// Hver gang det skjer en endring av antall heiser kalles denne
+
+	// If one connection lost:
+	// If master is lost
+	// Backup take over
+	// else (backup lost)
+	// make a new backup
+	// else (dummy elevator)
+	// don't care
+	// If new connection:
+	// If the new elevator is master (and there are two masters now):
+	// deside which elevator is master
+	// else
+	// master is starting a TCP conntection to the dummy elevator

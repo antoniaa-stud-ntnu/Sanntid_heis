@@ -38,6 +38,7 @@ func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
 			} else if button.ButtonType == elevio.HallDown {
 				hraHallReq[button.f][1] = true
 			} // Kall paa sendElevUpdate til master
+			
 			sendElevState()
 			
 		case floor := <-floorsCh:
@@ -55,7 +56,7 @@ func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
 // Endre slik at det ikke er FSM som tar inn channels som input, skal kunne kalles dersom master gir deg beskjed om det
 // Trenger altsaa et mellomledd, slik at statene sendes til master dersom noe skjer paa channels.
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, stopCh chan bool, primaryIPCh chan net.IP) {
-	
+
 	for {
 		select {
 		case button := <-buttonsCh:
@@ -170,9 +171,10 @@ func OnFloorArrival(newFloor int) {
 
 	switch elev.State {
 	case elevator.Moving:
-		if requests.ShouldStop(elev) {
+		if requests.ShouldStop(elev) { //I en etasje med request
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
+			//If hall request: send ordre fullført til primary
 			elev = requests.ClearAtCurrentFloor(elev)
 			timer.Start(elev.Config.DoorOpenDuration)
 			SetAllLights(elev)

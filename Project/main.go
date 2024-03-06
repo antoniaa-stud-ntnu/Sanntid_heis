@@ -7,11 +7,10 @@ import (
 	"Project/singleElevator/elevator"
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/fsm"
+	"Project/masterDummyBackup/mbdFSM"
 	"net"
-	//"command-line-arguments/home/student/Heis2/Sanntid_heis/Sanntid_heis/Project/network/udp_broadcast/udpBroadcaster.go"
 )
 
-// https://prod.liveshare.vsengsaas.visualstudio.com/join?C316A91544D83516CD085E57F58A55C3CD3F
 func singleElevatorProcess() {
 	elevio.Init("localhost:15657", elevio.N_FLOORS) //port
 
@@ -21,13 +20,15 @@ func singleElevatorProcess() {
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	MBDCh := make(chan elevator.MasterBackupDummyType)
-	primaryIPCh := make(chan net.IP)
+	SortedAliveElevIPsCh := make(chan []net.IP)
+	jsonMessageCh := make(chan []byte)
 
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
-	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, primaryIPCh)
+	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, SortedAliveElevIPsCh)
+	
 
 	//go fsm.CheckForTimeout() Denne kjører bare en gang
 	go fsm.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig
@@ -37,13 +38,19 @@ func singleElevatorProcess() {
 	}
 
 	fsm.InitLights()
-	//go MBD_FSM(MBDCh, primaryIPCh)
-	go fsm.FSM(buttonsCh, floorsCh, obstrCh, MBDCh, primaryIPCh)
+	go mbdFSM.MBD_FSM(MBDCh, SortedAliveElevIPsCh, jsonMessageCh)
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, MBDCh, SortedAliveElevIPsCh)
+
+}
+
+func MBDProsess() {
+	
 
 }
 
 func main() {
 	//udp_broadcast.ProcessPairInit()
+
 	singleElevatorProcess()
 	for {
 		select {}

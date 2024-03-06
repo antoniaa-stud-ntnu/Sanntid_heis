@@ -1,22 +1,22 @@
 package tcp
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
 )
 
-func TCP_server(hostIP string, hostPort string. handleClient func) {
+var iPToConnMap map[net.Addr]net.Conn
 
-	// Listen for incoming connections
-	//host := "localhost"
-	//port := "8080"
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", hostIP+":"+hostPort)
 
+func TCPListenForConnections(hostPort string, jsonMessageCh chan []byte) { //For master to listen to incomming connections, hostPort=masterPort
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", hostPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
 	}
+
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
 		fmt.Println("Could not open listener: ", err)
@@ -36,39 +36,43 @@ func TCP_server(hostIP string, hostPort string. handleClient func) {
 		}
 
 		// Handle client connection in a goroutine
-		go handleClient(conn)
+		connectionsIP := conn.RemoteAddr()
+		iPToConnMap[connectionsIP] = conn
+		go TCPReciveMessage(conn, jsonMessageCh)
+
 	}
 }
 
-func TCP_client(sendingData string, host string, port string) { 
-    // Connect to the server
-	// host := "localhost"
-	// port := "8080"
+func TCPMakeConncetion(host string, port string) net.Conn{ //For dummies og backup
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", host+":"+port)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
 	}
-    conn, err := net.Dial("tcp", tcpAddr.String())
-    if err != nil {
-        fmt.Println("Could not connect to server: ", err)
-        return
-    }
-    defer conn.Close()
-
-    // Send data to the server
-	data := []byte(sendingData)
-	_, err = conn.Write(data)
+	conn, err := net.Dial("tcp", tcpAddr.String())
 	if err != nil {
-		fmt.Printf("Could not send data: %s\n", err)
-		return
+		fmt.Println("Could not connect to server: ", err)
+		os.Exit(1)
 	}
+	defer conn.Close()
 
-    // Read and process data from the server
-    // ...
+	return conn
 }
 
-func handleClient(conn net.Conn) { //Gjør om til at den mottar FSM-state
+func TCPSendMessage(conn net.Conn, sendingData []byte) {
+	// Send data to the other side of the conncetion
+	_, err := conn.Write(sendingData)
+	if err != nil {
+		//conn.Close()
+		//fjern fra lista
+		fmt.Printf("Could not send data: %s\n", err)
+		os.Exit(1)
+	}
+}
+
+
+
+func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
 
 	// Create a buffer to read data into
@@ -76,15 +80,45 @@ func handleClient(conn net.Conn) { //Gjør om til at den mottar FSM-state
 
 	for {
 		// Read data from the client
-		n, err := conn.Read(buffer)
+		data, err := conn.Read(buffer) 
 		if err != nil {
+			//conn.Close()
+			//fjern fra lista
 			fmt.Println("Error:", err)
-			return
+			os.Exit(1)
 		}
 
 		// Process and use the data (here, we'll just print it)
-		fmt.Printf("Received: %s\n", buffer[:n])
+		fmt.Printf("Received: %s\n", buffer[:data])
+		jsonMessageCh <- buffer[:data]
 	}
 }
 
 
+ 
+
+
+// Forskjellen: TCPReciveMessage Den bruker en fast-størrelse buffer ([]byte) for å lese data fra tilkoblingen.
+//  Dette betyr at den leser opptil 1024 byte om gangen, uavhengig av hvor mye data som faktisk er sendt av klienten per melding.
+// Mens handleConnection leser og behandler en hel melding avsluttet med en ny linje (/n)
+
+/*
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	for {
+		// Read from the connection untill a new line is send
+		data, err := bufio.NewReader(conn).ReadString('\n')
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		// Print the data read from the connection to the terminal
+		fmt.Print("> ", string(data))
+
+		// Write back the same message to the client
+		conn.Write([]byte("Hello TCP Client\n"))
+	}
+}
+*/

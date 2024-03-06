@@ -6,11 +6,10 @@ import (
 	"Project/singleElevator/elevator"
 	"fmt"
 	"os"
+	"net"
 )
 
-const MasterPort = 27300
-const BackupPort = 27301
-const DummyPort = 27302
+
 
 // Dummy init
 	// Elevator init
@@ -25,7 +24,7 @@ const DummyPort = 27302
 // Send Im alive message to primary (TCP)
 
 
-
+var masterConn net.Conn
 
 func OnDummy() {
 	singleElevatorProcess()
@@ -35,24 +34,3 @@ func OnDummy() {
 }
 
 
-func MBD_FSM (MBDCh chan string, PrimaryIPCh chan string) {
-	PrimaryIP := <- PrimaryIPCh
-	println("Primary IP is:", PrimaryIP)
-	MBD := <- MBDCh
-	for {
-		switch MBD {
-		case "Master":
-			//Do master stuff
-			tcp.TCP_server("localhost", MasterPort)
-		case "Backup":
-			//Do backup stuff
-			tcp.TCP_client
-		case "Dummy":
-
-			//Do dummy stuff
-			//Send state update to master
-			//Listen to master
-
-		}
-	}
-}
