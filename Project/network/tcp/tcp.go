@@ -1,17 +1,17 @@
 package tcp
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"io"
 )
 
 var iPToConnMap map[net.Addr]net.Conn
 
-
-func TCPListenForConnections(hostPort string, jsonMessageCh chan []byte) { //For master to listen to incomming connections, hostPort=masterPort
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", hostPort)
+// Master opening a listening server and saving+handling incomming connections from all the elevators
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+ masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
@@ -24,78 +24,77 @@ func TCPListenForConnections(hostPort string, jsonMessageCh chan []byte) { //For
 	}
 	defer listener.Close()
 
-	fmt.Printf("Server is listening on port %s\n", hostPort)
+	fmt.Printf("Server is listening on port %s\n", masterPort)
 
 	for {
 		// Accept incoming connections
 		conn, err := listener.Accept()
-		// conn.SetReadDeadline(time.Now().Add(1 * time.Second)) // Set timeout of 1 second
 		if err != nil {
 			fmt.Printf("Could not accept connection: %s\n", err)
 			continue
 		}
-
-		// Handle client connection in a goroutine
+		// Add connection to map with active connections
 		connectionsIP := conn.RemoteAddr()
 		iPToConnMap[connectionsIP] = conn
+
+		// Handle client connection in a goroutine
 		go TCPReciveMessage(conn, jsonMessageCh)
-
 	}
 }
 
-func TCPMakeConncetion(host string, port string) net.Conn{ //For dummies og backup
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", host+":"+port)
-	if err != nil {
-		fmt.Printf("Could not resolve address: %s\n", err)
-		os.Exit(1)
-	}
-	conn, err := net.Dial("tcp", tcpAddr.String())
-	if err != nil {
-		fmt.Println("Could not connect to server: ", err)
-		os.Exit(1)
-	}
-	defer conn.Close()
-
-	return conn
-}
-
-func TCPSendMessage(conn net.Conn, sendingData []byte) {
-	// Send data to the other side of the conncetion
-	_, err := conn.Write(sendingData)
-	if err != nil {
-		//conn.Close()
-		//fjern fra lista
-		fmt.Printf("Could not send data: %s\n", err)
-		os.Exit(1)
-	}
-}
-
-
-
+// Recieving messages and sending them on a channel for to be handeled else where
 func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
 
 	// Create a buffer to read data into
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 65536)
 
 	for {
 		// Read data from the client
 		data, err := conn.Read(buffer) 
 		if err != nil {
-			//conn.Close()
-			//fjern fra lista
-			fmt.Println("Error:", err)
-			os.Exit(1)
-		}
+            // Remove the connection from iPToConnMap of active connections
+			conn.Close()
+			delete(iPToConnMap, conn.RemoteAddr())
 
-		// Process and use the data (here, we'll just print it)
-		fmt.Printf("Received: %s\n", buffer[:data])
+            if err == io.EOF {
+                fmt.Println("Client closed the connection.")
+            } else {
+                fmt.Println("Error:", err)
+            }
+            return
+        }
+
+		//fmt.Printf("Received: %s\n", buffer[:data])
 		jsonMessageCh <- buffer[:data]
 	}
 }
 
+// Function for connecting to the listening server
+func TCPMakeMasterConnection(host string, port string) (net.Conn, error) { 
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", host+":"+port)
+	if err != nil {
+		fmt.Printf("Could not resolve address: %s\n", err)
+	}
 
- 
+	conn, err := net.Dial("tcp", tcpAddr.String())
+	if err != nil {
+		fmt.Println("Could not connect to server: ", err)
+	}
+	
+	return conn, err
+}
+
+
+func TCPSendMessage(conn net.Conn, sendingData []byte) {
+	// Send data to the other side of the conncetion
+	_, err := conn.Write(sendingData)
+	if err != nil {
+		fmt.Println("Error sending data to server:", err)
+		return
+	}
+}
+
 
 
 // Forskjellen: TCPReciveMessage Den bruker en fast-størrelse buffer ([]byte) for å lese data fra tilkoblingen.

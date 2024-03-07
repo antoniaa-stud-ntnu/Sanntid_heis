@@ -33,4 +33,6 @@ func OnDummy() {
 	fmt.Println("Dummy elevator is running")
 }
 
-
+StateUpdate() {
+	
+}
