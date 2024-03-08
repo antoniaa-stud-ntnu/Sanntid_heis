@@ -163,3 +163,15 @@ func InitElev() Elevator {
 							},
 	}
 }
+
+func GetCabRequests(es Elevator) []bool{
+	var cabRequests []bool
+	for floor := 0; floor < elevio.N_FLOORS; floor++{
+		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
+			if btn == elevio.Cab {
+				cabRequests.pushback[floor] = es.Requests[floor][btn]
+			}
+		}
+	}
+	return cabRequests
+}

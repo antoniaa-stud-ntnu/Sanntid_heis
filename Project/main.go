@@ -1,11 +1,11 @@
 package main
 
 import (
+	"Project/masterDummyBackup/dummy"
 	"Project/masterDummyBackup/mbdFSM"
 	"Project/masterDummyBackup/roleDistributor"
 	"Project/network/udpBroadcast"
 	"Project/network/udpBroadcast/udpNetwork/peers"
-	"Project/singleElevator/elevator"
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/fsm"
 	"net"
@@ -24,12 +24,14 @@ func singleElevatorProcess() {
 	jsonMessageCh := make(chan []byte)
 	hraOutputCh := make(chan [][2]bool)
 	lightsCh := make(chan [][2]bool)
+	statusUpdateCh := make(chan dummy.HRAElevState)
 
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, SortedAliveElevIPsCh)
+	go dummy.OnDummy(MBDCh, statusUpdateCh, SortedAliveElevIPsCh, jsonMessageCh, peerUpdateToRoleDistributorCh)
 
 	//go fsm.CheckForTimeout() Denne kjører bare en gang
 	go fsm.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig

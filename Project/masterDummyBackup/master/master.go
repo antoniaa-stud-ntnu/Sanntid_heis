@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"runtime"
 )
@@ -34,11 +33,11 @@ import (
 //ret, err := exec.Command("../hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
 
 const MasterPort = "27300"
+
 var iPToConnMap map[net.Addr]net.Conn
 
-
 type HRAElevState struct {
-	Behaviour    string `json:"behaviour"`
+	Behaviour   string `json:"behaviour"`
 	Floor       int    `json:"floor"`
 	Direction   string `json:"direction"`
 	CabRequests []bool `json:"cabRequests"`
@@ -50,20 +49,21 @@ type HRAInput struct {
 }
 
 type msgElevState struct {
-	ipAddr		string			`json:"ipAdress"`
-	elevState	HRAElevState	`json:"elevState"`
+	ipAddr    string       `json:"ipAdress"`
+	elevState HRAElevState `json:"elevState"`
 }
 
 type msgHallReq struct {
-	tAdd_fRemove 	bool				`json:"tAdd_fRemove"`
-	floor			int					`json:"floor"`
-	button			elevio.ButtonType	`json:"button"`
+	tAdd_fRemove bool              `json:"tAdd_fRemove"`
+	floor        int               `json:"floor"`
+	button       elevio.ButtonType `json:"button"`
 } // Up-0, Down-1, lik med index i HallRequests [][2]
 
 var allHallReqAndStates HRAInput
 var hraMasterState HRAElevState
 var MBD string
 var sortedAliveElevs []net.IP
+
 func OnMaster(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessageCh chan []byte, hraOutputCh chan [][2]bool) {
 	iPToConnMap = make(map[net.Addr]net.Conn)
 	tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMessageCh)
@@ -80,7 +80,7 @@ func OnMaster(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessage
 
 			if err := json.Unmarshal(jsonMsg, &msgElevState); err == nil {
 				// Process msgElevState
-				allHallReqAndStates.States[msgElevState.ipAddr] =  msgElevState.elevState
+				allHallReqAndStates.States[msgElevState.ipAddr] = msgElevState.elevState
 			} else if err := json.Unmarshal(jsonMsg, &msgHallReq); err == nil {
 				// Process msgHallReq
 				if msgHallReq.tAdd_fRemove == true {
@@ -95,12 +95,20 @@ func OnMaster(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessage
 				toHRA.HallRequests = allHallReqAndStates.HallRequests
 				for _, ip := range sortedAliveElevs {
 					toHRA.States[ip.String()] = allHallReqAndStates.States[ip.String()]
-				} 
+				}
 				output := RunHallRequestAssigner(toHRA)
 				fmt.Printf("output: \n")
-				for k, v := range output {
-					fmt.Printf("%6v :  %+v\n", k, v)
+				for ipAddrString, hallRequest := range output {
+					ipAddr, _ := net.ResolveIPAddr("ip", ipAddrString) // String til net.Addr
+					jsonHallReq, err := json.Marshal(hallRequest)
+					if err != nil {
+						fmt.Println("Error marshaling:", err)
+					}
+					tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
+					// starte timer
+
 				}
+
 
 			} else {
 				fmt.Println("Master could not recieve message:", err)
@@ -133,32 +141,33 @@ func OnMaster(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessage
 
 }
 
-	// Connection with elevators
+// Connection with elevators
 
 func RunHallRequestAssigner(input HRAInput) map[string][][2]bool {
 
 	hraExecutable := ""
 	switch runtime.GOOS {
-		case "linux":   hraExecutable  = "hall_request_assigner"
-		case "windows": hraExecutable  = "hall_request_assigner.exe"
-		default:        panic("OS not supported")
+	case "linux":
+		hraExecutable = "hall_request_assigner"
+	case "windows":
+		hraExecutable = "hall_request_assigner.exe"
+	default:
+		panic("OS not supported")
 	}
-
-	
 
 	jsonBytes, err := json.Marshal(input)
 	if err != nil {
 		fmt.Println("json.Marshal error: ", err)
 		return nil
 	}
-	
+
 	ret, err := exec.Command("./hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)
 		fmt.Println(string(ret))
 		return nil
 	}
-	
+
 	output := new(map[string][][2]bool)
 	err = json.Unmarshal(ret, &output)
 	if err != nil {
@@ -166,10 +175,11 @@ func RunHallRequestAssigner(input HRAInput) map[string][][2]bool {
 		return nil
 	}
 	/*
-	fmt.Printf("output: \n")
-	for k, v := range *output {
-		fmt.Printf("%6v :  %+v\n", k, v)
-	}
+		fmt.Printf("output: \n")
+		for k, v := range *output {
+			fmt.Printf("%6v :  %+v\n", k, v)
+		}
 	*/
 	return *output
 }
+

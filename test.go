@@ -30,9 +30,14 @@ type msgElevState struct {
 }
 
 // Custom struct to hold type identifier and data
-type Message struct {
+type SendMessage struct {
 	Type string      `json:"type"`
 	Data interface{} `json:"data"`
+}
+
+type RecieveMessage struct {
+	Type string      `json:"type"`
+	Data []byte 	`json:"data"`
 }
 
 // MarshalStruct marshals any variable of the provided structs into a JSON message
@@ -40,8 +45,6 @@ func MarshalStruct(msg interface{}) ([]byte, error) {
 	// Determine the type of data
 	var typeName string
 	switch msg.(type) {
-	case HRAElevState:
-		typeName = "HRAElevState"
 	case HRAInput:
 		typeName = "HRAInput"
 	case msgElevState:
@@ -51,7 +54,7 @@ func MarshalStruct(msg interface{}) ([]byte, error) {
 	}
 
 	// Create the message
-	message := Message{
+	message := SendMessage{
 		Type: typeName,
 		Data: msg,
 	}
@@ -65,7 +68,7 @@ func MarshalStruct(msg interface{}) ([]byte, error) {
 func UnmarshalStruct(jsonMsg []byte) (string, interface{}, error) {
 	fmt.Println("Unmarshalling message")
 	// Unmarshal the message
-	var message Message
+	var message SendMessage
 	err := json.Unmarshal(jsonMsg, &message)
 	if err != nil {
 		fmt.Println("Error unmarshalling message:", err)
@@ -79,10 +82,6 @@ func UnmarshalStruct(jsonMsg []byte) (string, interface{}, error) {
 
 	// Determine the type and unmarshal the msgData
 	switch message.Type {
-	case "HRAElevState":
-		var state HRAElevState
-		err := json.Unmarshal(msgData, &state)
-		return message.Type, state, err
 	case "HRAInput":
 		var input HRAInput
 		err := json.Unmarshal(msgData, &input)
@@ -102,19 +101,78 @@ func UnmarshalStruct(jsonMsg []byte) (string, interface{}, error) {
 func UnmarshalStruct2(jsonMsg []byte) (string, interface{}, error) {
 	fmt.Println("Unmarshalling message")
 	// Unmarshal the message
-	var message Message
+	var message SendMessage
+	err := json.Unmarshal(jsonMsg, &message)
+	if err != nil {
+		fmt.Println("Error unmarshalling message:", err)
+		return "", nil, err
+	}
+	//msgData := []byte(fmt.Sprintf("%v", message.Data))
+	//fmt.Println(string(msgData))
+	// Determine the type and unmarshal the Data field directly
+
+	// Marshal the Data field into JSON
+    msgData, err := json.Marshal(message.Data)
+    if err != nil {
+        fmt.Println("Error marshalling message data:", err)
+        return "", nil, err
+    }
+
+    switch message.Type {
+    case "HRAElevState":
+        var state HRAElevState
+        err := json.Unmarshal(msgData, &state)
+        return message.Type, state, err
+    case "HRAInput":
+        var input HRAInput
+        err := json.Unmarshal(msgData, &input)
+        //fmt.Println("Input:", input)
+        //fmt.Println("Error:", err)
+        return message.Type, input, err
+    case "msgElevState":
+        var msg msgElevState
+        err := json.Unmarshal(msgData, &msg)
+        return message.Type, msg, err
+    default:
+        return "nil", nil, fmt.Errorf("unknown type identifier")
+    }
+}
+
+// MarshalStruct marshals any variable of the provided structs into a JSON message
+func MarshalStruct3(msg interface{}) ([]byte, error) {
+	// Create the message
+	message := SendMessage{
+		Type: "",
+		Data: nil,
+	}
+
+	switch m := msg.(type) {
+	case HRAInput:
+		message.Type = "HRAInput"
+		message.Data = m
+	case msgElevState:
+		message.Type = "msgElevState"
+		message.Data = m
+	default:
+		return nil, fmt.Errorf("unsupported type")
+	}
+
+	// Marshal the message
+	return json.Marshal(message)
+}
+
+// UnmarshalStruct unmarshals a JSON message into the original struct based on the type identifier
+func UnmarshalStruct3(jsonMsg []byte) (string, interface{}, error) {
+	fmt.Println("Unmarshalling message")
+	// Unmarshal the message
+	var message SendMessage
 	err := json.Unmarshal(jsonMsg, &message)
 	if err != nil {
 		fmt.Println("Error unmarshalling message:", err)
 		return "", nil, err
 	}
 
-	// Determine the type and unmarshal the Data field directly
 	switch message.Type {
-	case "HRAElevState":
-		var state HRAElevState
-		err := json.Unmarshal(jsonMsg, &state)
-		return message.Type, state, err
 	case "HRAInput":
 		var input HRAInput
 		err := json.Unmarshal(jsonMsg, &input)
@@ -258,9 +316,9 @@ func main() {
 			select {
 			case msg := <-jsonMessageCh:
 				fmt.Println("New message received")
-				msgType, msgOutput, _ := UnmarshalStruct(msg)
+				msgType, msgOutput, _ := UnmarshalStruct3(msg)
 				fmt.Println(msgType)
-				fmt.Println(msgOutput)
+				fmt.Println("From client:", msgOutput)
 			}
 		}
 	case "1":
@@ -273,7 +331,7 @@ func main() {
 				return
 			}
 			fmt.Println(string(inputJSON)) */
-		inputBytes, _ := MarshalStruct(input)
+		inputBytes, _ := MarshalStruct3(input)
 		TCPSendMessage(conn, inputBytes)
 		fmt.Println("Written to server", string(inputBytes[:]))
 		conn.Close()
@@ -286,16 +344,12 @@ Input argument: 1
 Connected to server
 Written to server {"type":"HRAInput","data":{"hallRequests":[[false,false],[true,false],[false,false],[false,true]],"states":{"one":{"behaviour":"moving","floor":2,"direction":"up","cabRequests":[false,false,false,true]},"two":{"behaviour":"idle","floor":0,"direction":"stop","cabRequests":[false,false,false,false]}}}}
 
-
 Input argument: 0
 tcp listener running
 Server is listening on port 20016
-Client closed the connection.
 New message received
 Unmarshalling message
-msgData: map[hallRequests:[[false false] [true false] [false false] [false true]] states:map[one:map[behaviour:moving cabRequests:[false false false true] direction:up floor:2] two:map[behaviour:idle cabRequests:[false false false false] direction:stop floor:0]]]
-Input: {[] map[]}
-Error: invalid character 'm' looking for beginning of value
+Client closed the connection.
 HRAInput
-{[] map[]}
+From client: {[[false false] [true false] [false false] [false true]] map[one:{moving 2 up [false false false true]} two:{idle 0 stop [false false false false]}]}
 */

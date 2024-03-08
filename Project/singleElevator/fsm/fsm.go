@@ -48,7 +48,9 @@ var hraElevState HRAElevState
 
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, hraOutputCh chan [][2]bool, obstrCh chan bool, lightsCh chan [][2]bool, conn net.Conn) {
 	hraElevState.Direction = elevator.DirnToString(elev.Dirn)
-	hraElevState.Behavior = elevator.EbToString(elev.State) // burde vi initialisere .Floor og CabReq
+	hraElevState.Behavior = elevator.EbToString(elev.State)
+	hraElevState.CabRequests = elevator.GetCabRequests(elev)
+	hraElevState.Floor = elev.Floor
 	myIP, _ := localip.LocalIP();
 	for {
 		select {
@@ -129,6 +131,11 @@ func SetLights(es elevator.Elevator, hallReq [][2]bool) { // maa sende inn hallR
 			}
 		}
 	}
+}
+// Lysfunksjon med buttonType, floor, og on/off
+func SetLight(es elevator.Elevator, btn elevio.ButtonType, floor int, onOrOff bool){ 
+	btn == elevio.ButtonType.Cab
+	elevio.SetButtonLamp(floor, elevio.ButtonType(btn), onOrOff)
 }
 
 
