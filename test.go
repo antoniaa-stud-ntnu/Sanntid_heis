@@ -6,14 +6,20 @@ import (
 	"io"
 	"net"
 	"os"
+	"Project/singleElevator/elevio"
+	//"bytes"
+	//"encoding/binary"
 )
 
 const MasterPort = "27300"
+const HRAInputType = "HRAInput"
+const MsgElevStateType = "msgElevState"
+const MsgHallReqType = "msgHallReq"
 
 var iPToConnMap map[net.Addr]net.Conn
 
 type HRAElevState struct {
-	Behavior    string `json:"behaviour"`
+	Behaviour   string `json:"behaviour"`
 	Floor       int    `json:"floor"`
 	Direction   string `json:"direction"`
 	CabRequests []bool `json:"cabRequests"`
@@ -29,163 +35,16 @@ type msgElevState struct {
 	ElevState HRAElevState `json:"elevState"`
 }
 
-// Custom struct to hold type identifier and data
-type SendMessage struct {
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
+type msgHallReq struct {
+	TAddFRemove bool              `json:"tAdd_fRemove"`
+	Floor       int               `json:"floor"`
+	Button      elevio.ButtonType `json:"button"`
 }
 
-type RecieveMessage struct {
-	Type string      `json:"type"`
-	Data []byte 	`json:"data"`
+type dataWithType struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
 }
-
-// MarshalStruct marshals any variable of the provided structs into a JSON message
-func MarshalStruct(msg interface{}) ([]byte, error) {
-	// Determine the type of data
-	var typeName string
-	switch msg.(type) {
-	case HRAInput:
-		typeName = "HRAInput"
-	case msgElevState:
-		typeName = "msgElevState"
-	default:
-		return nil, fmt.Errorf("unsupported type")
-	}
-
-	// Create the message
-	message := SendMessage{
-		Type: typeName,
-		Data: msg,
-	}
-
-	// Marshal the message
-
-	return json.Marshal(message)
-}
-
-// UnmarshalStruct unmarshals a JSON message into the original struct based on the type identifier
-func UnmarshalStruct(jsonMsg []byte) (string, interface{}, error) {
-	fmt.Println("Unmarshalling message")
-	// Unmarshal the message
-	var message SendMessage
-	err := json.Unmarshal(jsonMsg, &message)
-	if err != nil {
-		fmt.Println("Error unmarshalling message:", err)
-		return "", nil, err
-	}
-
-	// Convert the data to a byte array
-	//msgData := []byte(fmt.Sprint(message.Data))
-	msgData:= []byte(fmt.Sprintf("%v", message.Data))
-	fmt.Println("msgData:", string(msgData))
-
-	// Determine the type and unmarshal the msgData
-	switch message.Type {
-	case "HRAInput":
-		var input HRAInput
-		err := json.Unmarshal(msgData, &input)
-		fmt.Println("Input:", input)
-		fmt.Println("Error:", err)
-		return message.Type, input, err
-	case "msgElevState":
-		var msg msgElevState
-		err := json.Unmarshal(msgData, &msg)
-		return message.Type, msg, err
-	default:
-		return "nil", nil, fmt.Errorf("unknown type identifier")
-	}
-}
-
-// UnmarshalStruct unmarshals a JSON message into the original struct based on the type identifier
-func UnmarshalStruct2(jsonMsg []byte) (string, interface{}, error) {
-	fmt.Println("Unmarshalling message")
-	// Unmarshal the message
-	var message SendMessage
-	err := json.Unmarshal(jsonMsg, &message)
-	if err != nil {
-		fmt.Println("Error unmarshalling message:", err)
-		return "", nil, err
-	}
-	//msgData := []byte(fmt.Sprintf("%v", message.Data))
-	//fmt.Println(string(msgData))
-	// Determine the type and unmarshal the Data field directly
-
-	// Marshal the Data field into JSON
-    msgData, err := json.Marshal(message.Data)
-    if err != nil {
-        fmt.Println("Error marshalling message data:", err)
-        return "", nil, err
-    }
-
-    switch message.Type {
-    case "HRAElevState":
-        var state HRAElevState
-        err := json.Unmarshal(msgData, &state)
-        return message.Type, state, err
-    case "HRAInput":
-        var input HRAInput
-        err := json.Unmarshal(msgData, &input)
-        //fmt.Println("Input:", input)
-        //fmt.Println("Error:", err)
-        return message.Type, input, err
-    case "msgElevState":
-        var msg msgElevState
-        err := json.Unmarshal(msgData, &msg)
-        return message.Type, msg, err
-    default:
-        return "nil", nil, fmt.Errorf("unknown type identifier")
-    }
-}
-
-// MarshalStruct marshals any variable of the provided structs into a JSON message
-func MarshalStruct3(msg interface{}) ([]byte, error) {
-	// Create the message
-	message := SendMessage{
-		Type: "",
-		Data: nil,
-	}
-
-	switch m := msg.(type) {
-	case HRAInput:
-		message.Type = "HRAInput"
-		message.Data = m
-	case msgElevState:
-		message.Type = "msgElevState"
-		message.Data = m
-	default:
-		return nil, fmt.Errorf("unsupported type")
-	}
-
-	// Marshal the message
-	return json.Marshal(message)
-}
-
-// UnmarshalStruct unmarshals a JSON message into the original struct based on the type identifier
-func UnmarshalStruct3(jsonMsg []byte) (string, interface{}, error) {
-	fmt.Println("Unmarshalling message")
-	// Unmarshal the message
-	var message SendMessage
-	err := json.Unmarshal(jsonMsg, &message)
-	if err != nil {
-		fmt.Println("Error unmarshalling message:", err)
-		return "", nil, err
-	}
-
-	switch message.Type {
-	case "HRAInput":
-		var input HRAInput
-		err := json.Unmarshal(jsonMsg, &input)
-		return message.Type, input, err
-	case "msgElevState":
-		var msg msgElevState
-		err := json.Unmarshal(jsonMsg, &msg)
-		return message.Type, msg, err
-	default:
-		return "nil", nil, fmt.Errorf("unknown type identifier")
-	}
-}
-
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
 func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte) {
@@ -272,23 +131,67 @@ func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	}
 }
 
+func ToBytes(structType string, msg interface{}) []byte {
+	//fmt.Println(msg.(type))
+	msgJsonBytes, _ := json.Marshal(msg)
+
+	dataToSend := dataWithType{
+		Type: structType,
+		Data: msgJsonBytes,
+	}
+
+	finalJSONBytes, _ := json.Marshal(dataToSend)
+	return finalJSONBytes
+}
+
+func FromBytes(jsonBytes []byte) (string, interface{}) {
+	var DataWithType dataWithType
+	err := json.Unmarshal(jsonBytes, &DataWithType)
+	if err != nil {
+		// Handle error
+		return DataWithType.Type, nil
+	}
+	switch DataWithType.Type {
+	case "HRAInput":
+		var HRAInputData HRAInput
+		err = json.Unmarshal(DataWithType.Data, &HRAInputData)
+		return DataWithType.Type, HRAInputData
+	case "msgElevState":
+		var MsgElevStateData msgElevState
+		err = json.Unmarshal(DataWithType.Data, &MsgElevStateData)
+		return DataWithType.Type, MsgElevStateData
+	case "msgHallReq":
+		var MsgHallReqData msgHallReq
+		err = json.Unmarshal(DataWithType.Data, &MsgHallReqData)
+		return DataWithType.Type, MsgHallReqData
+	case "msgHallLights":
+		var MsgHallLightsData msgHallReq
+		err = json.Unmarshal(DataWithType.Data, &MsgHallLightsData)
+		return DataWithType.Type, MsgHallLightsData
+	default:
+		return DataWithType.Type, nil
+	}
+}
+
 var input = HRAInput{
 	HallRequests: [][2]bool{{false, false}, {true, false}, {false, false}, {false, true}},
 	States: map[string]HRAElevState{
 		"one": HRAElevState{
-			Behavior:    "moving",
+			Behaviour:   "moving",
 			Floor:       2,
 			Direction:   "up",
 			CabRequests: []bool{false, false, false, true},
 		},
 		"two": HRAElevState{
-			Behavior:    "idle",
+			Behaviour:   "idle",
 			Floor:       0,
 			Direction:   "stop",
 			CabRequests: []bool{false, false, false, false},
 		},
 	},
 }
+
+//var hallReqs := {{false, false}, {true, false}, {false, false}, {false, true}}
 
 func main() {
 
@@ -316,40 +219,24 @@ func main() {
 			select {
 			case msg := <-jsonMessageCh:
 				fmt.Println("New message received")
-				msgType, msgOutput, _ := UnmarshalStruct3(msg)
-				fmt.Println(msgType)
-				fmt.Println("From client:", msgOutput)
+				msgType, data := FromBytes(msg)
+				switch msgType {
+				case HRAInputType:
+					
+					fmt.Println("message is: ", data.(HRAInput).HallRequests)
+					
+				//fmt.Println("message is: ", msgType.(HRAInput).HallRequests)
+
+				}
 			}
 		}
 	case "1":
 		conn, _ := TCPMakeMasterConnection("localhost", "20016")
 		fmt.Println("Connected to server")
-		/*
-			inputJSON, err := json.MarshalIndent(input, "", "    ")
-			if err != nil {
-				fmt.Println("Error marshaling input:", err)
-				return
-			}
-			fmt.Println(string(inputJSON)) */
-		inputBytes, _ := MarshalStruct3(input)
+		//inputBytes := ToBytes("HRAInput", hallReqs)
 		TCPSendMessage(conn, inputBytes)
 		fmt.Println("Written to server", string(inputBytes[:]))
 		conn.Close()
+		
 	}
 }
-
-/*
-Output from terminal when running the program 
-Input argument: 1
-Connected to server
-Written to server {"type":"HRAInput","data":{"hallRequests":[[false,false],[true,false],[false,false],[false,true]],"states":{"one":{"behaviour":"moving","floor":2,"direction":"up","cabRequests":[false,false,false,true]},"two":{"behaviour":"idle","floor":0,"direction":"stop","cabRequests":[false,false,false,false]}}}}
-
-Input argument: 0
-tcp listener running
-Server is listening on port 20016
-New message received
-Unmarshalling message
-Client closed the connection.
-HRAInput
-From client: {[[false false] [true false] [false false] [false true]] map[one:{moving 2 up [false false false true]} two:{idle 0 stop [false false false false]}]}
-*/

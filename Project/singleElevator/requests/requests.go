@@ -89,6 +89,16 @@ func ShouldStop(e elevator.Elevator) bool {
 	}
 }
 
+func ShouldClearHallRequest(e elevator.Elevator) elevio.ButtonType {
+	if e.Requests[e.Floor][elevio.HallDown] {
+		return elevio.HallDown
+	} else if e.Requests[e.Floor][elevio.HallUp] {
+		return elevio.HallUp
+	} else {
+		return elevio.Cab
+	}
+}
+
 func ShouldClearImmediately(e elevator.Elevator, btn_floor int, btn_type elevio.ButtonType) bool {
 	switch e.Config.ClearRequestVariant {
 	case elevator.CV_All:

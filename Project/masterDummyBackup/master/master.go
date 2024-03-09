@@ -3,6 +3,7 @@ package master
 import (
 	"Project/network/tcp"
 	"Project/singleElevator/elevio"
+	"Project/network/messages"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -100,10 +101,7 @@ func OnMaster(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessage
 				fmt.Printf("output: \n")
 				for ipAddrString, hallRequest := range output {
 					ipAddr, _ := net.ResolveIPAddr("ip", ipAddrString) // String til net.Addr
-					jsonHallReq, err := json.Marshal(hallRequest)
-					if err != nil {
-						fmt.Println("Error marshaling:", err)
-					}
+					jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
 					tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
 					// starte timer
 

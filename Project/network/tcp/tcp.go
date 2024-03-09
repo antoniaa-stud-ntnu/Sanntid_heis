@@ -2,16 +2,16 @@ package tcp
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
-	"io"
 )
 
 var iPToConnMap map[net.Addr]net.Conn
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
 func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+ masterPort)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
@@ -51,19 +51,19 @@ func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om t
 
 	for {
 		// Read data from the client
-		data, err := conn.Read(buffer) 
+		data, err := conn.Read(buffer)
 		if err != nil {
-            // Remove the connection from iPToConnMap of active connections
+			// Remove the connection from iPToConnMap of active connections
 			conn.Close()
 			delete(iPToConnMap, conn.RemoteAddr())
 
-            if err == io.EOF {
-                fmt.Println("Client closed the connection.")
-            } else {
-                fmt.Println("Error:", err)
-            }
-            return
-        }
+			if err == io.EOF {
+				fmt.Println("Client closed the connection.")
+			} else {
+				fmt.Println("Error:", err)
+			}
+			return
+		}
 
 		//fmt.Printf("Received: %s\n", buffer[:data])
 		jsonMessageCh <- buffer[:data]
@@ -71,7 +71,7 @@ func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om t
 }
 
 // Function for connecting to the listening server
-func TCPMakeMasterConnection(host string, port string) (net.Conn, error) { 
+func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", host+":"+port)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
@@ -81,10 +81,9 @@ func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
 	if err != nil {
 		fmt.Println("Could not connect to server: ", err)
 	}
-	
+
 	return conn, err
 }
-
 
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	// Send data to the other side of the conncetion
@@ -94,8 +93,6 @@ func TCPSendMessage(conn net.Conn, sendingData []byte) {
 		return
 	}
 }
-
-
 
 // Forskjellen: TCPReciveMessage Den bruker en fast-størrelse buffer ([]byte) for å lese data fra tilkoblingen.
 //  Dette betyr at den leser opptil 1024 byte om gangen, uavhengig av hvor mye data som faktisk er sendt av klienten per melding.

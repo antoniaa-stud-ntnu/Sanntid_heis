@@ -1,9 +1,9 @@
 package main
 
 import (
-	"Project/masterDummyBackup/dummy"
 	"Project/masterDummyBackup/mbdFSM"
 	"Project/masterDummyBackup/roleDistributor"
+	"Project/network/messages"
 	"Project/network/udpBroadcast"
 	"Project/network/udpBroadcast/udpNetwork/peers"
 	"Project/singleElevator/elevio"
@@ -20,18 +20,17 @@ func singleElevatorProcess() {
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	MBDCh := make(chan string)
-	SortedAliveElevIPsCh := make(chan []net.IP)
+	masterIPCH := make(chan net.IP)
+	sortedAliveElevIPsCh := make(chan []net.IP)
 	jsonMessageCh := make(chan []byte)
-	hraOutputCh := make(chan [][2]bool)
-	lightsCh := make(chan [][2]bool)
-	statusUpdateCh := make(chan dummy.HRAElevState)
+	toFsmCh := make(chan []byte)
+	toMbdFSMCh := make(chan []byte)
 
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
-	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, SortedAliveElevIPsCh)
-	go dummy.OnDummy(MBDCh, statusUpdateCh, SortedAliveElevIPsCh, jsonMessageCh, peerUpdateToRoleDistributorCh)
+	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, sortedAliveElevIPsCh)
 
 	//go fsm.CheckForTimeout() Denne kjører bare en gang
 	go fsm.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig
@@ -41,8 +40,9 @@ func singleElevatorProcess() {
 	}
 
 	fsm.InitLights()
-	go mbdFSM.MBD_FSM(MBDCh, SortedAliveElevIPsCh, jsonMessageCh, lightsCh)
-	go fsm.FSM(buttonsCh, floorsCh, hraOutputCh, obstrCh, lightsCh, conn) // endre conn til å være den conn som returneres fra TCPconnection
+	go mbdFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, toMbdFSMCh, masterIPCH)
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCH, jsonMessageCh, toFsmCh) // endre conn til å være den conn som returneres fra TCPconnection
+	go messages.DistributeMessages(jsonMessageCh, toFsmCh, toMbdFSMCh)
 }
 
 func MBDProsess() {

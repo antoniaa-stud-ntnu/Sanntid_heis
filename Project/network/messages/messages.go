@@ -1,12 +1,16 @@
 package messages
 
 import (
-	"Project/network/tcp"
-	"encoding/json"
 	"Project/singleElevator/elevio"
+	"encoding/json"
 	"fmt"
-	"net"
 )
+
+const MsgHRAInput = "HRAInput"               // To backup --> to MBDfsm
+const MsgElevState = "ElevState"             // To master --> to MBDfsm
+const MsgHallReq = "HallReq"                 // To master --> to MBDfsm
+const MsgHallLigths = "HallLights"           // To elevators --> fsm
+const MsgAssignedHallReq = "AssignedHallReq" // To elevators --> to fsm
 
 type HRAElevState struct {
 	Behaviour   string `json:"behaviour"`
@@ -20,98 +24,83 @@ type HRAInput struct {
 	States       map[string]HRAElevState `json:"states"`
 }
 
-type msgElevState struct {
+type ElevStateMsg struct {
 	IpAddr    string       `json:"ipAdress"`
 	ElevState HRAElevState `json:"elevState"`
 }
 
-type msgHallReq struct {
+type HallReqMsg struct {
 	TAddFRemove bool              `json:"tAdd_fRemove"`
 	Floor       int               `json:"floor"`
 	Button      elevio.ButtonType `json:"button"`
 }
 
-
-func SendElevState(ipAddr string, state HRAElevState, conn net.Conn) {
-	var stateMap map[string]HRAElevState
-	stateMap[ipAddr] = state
-	stateBytes, _ := json.Marshal(state)
-	tcp.TCPSendMessage(conn, stateBytes)
+type dataWithType struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
 }
 
-func SendHRAInputToBackup(input HRAInput, serverIP string, portNr string) {
-	inputBytes, _ := json.Marshal(input)
-	fmt.Println(inputBytes)
-}
+func ToBytes(structType string, msg interface{}) []byte {
+	msgJsonBytes, _ := json.Marshal(msg)
 
-// Custom struct to hold type identifier and data
-type Message struct {
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
-}
-
-// MarshalStruct marshals any variable of the provided structs into a JSON message
-func MarshalStruct(msg interface{}) ([]byte, error) {
-	// Determine the type of data
-	var typeName string
-	switch msg.(type) {
-	case HRAElevState:
-		typeName = "HRAElevState"
-	case HRAInput:
-		typeName = "HRAInput"
-	case msgElevState:
-		typeName = "msgElevState"
-	case msgHallReq:
-		typeName = "msgHallReq"
-	default:
-		return nil, fmt.Errorf("unsupported type")
+	dataToSend := dataWithType{
+		Type: structType,
+		Data: msgJsonBytes,
 	}
 
-	// Create the message
-	message := Message{
-		Type: typeName,
-		Data: msg,
-	}
-
-	// Marshal the message
-	return json.Marshal(message)
+	finalJSONBytes, _ := json.Marshal(dataToSend)
+	return finalJSONBytes
 }
 
-// UnmarshalStruct unmarshals a JSON message into the original struct based on the type identifier
-func UnmarshalStruct(jsonMsg []byte) (interface{}, error) {
-	// Unmarshal the message
-	var message Message
-	err := json.Unmarshal(jsonMsg, &message)
+func FromBytes(jsonBytes []byte) (string, interface{}) {
+	var DataWithType dataWithType
+	err := json.Unmarshal(jsonBytes, &DataWithType)
 	if err != nil {
-		return nil, err
+		// Handle error
+		return DataWithType.Type, nil
 	}
-
-	// Convert the data to a byte array
-	msgData, ok := message.Data.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("unexpected data type")
-	}
-
-	// Determine the type and unmarshal the msgData
-	switch message.Type {
-	case "HRAElevState":
-		var state HRAElevState
-		
-		err := json.Unmarshal(msgData, &state)
-		return state, err
-	case "HRAInput":
-		var input HRAInput
-		err := json.Unmarshal(msgData, &input)
-		return input, err
-	case "msgElevState":
-		var msg msgElevState
-		err := json.Unmarshal(msgData, &msg)
-		return msg, err
-	case "msgHallReq":
-		var msg msgHallReq
-		err := json.Unmarshal(msgData, &msg)
-		return msg, err
+	switch DataWithType.Type {
+	case MsgHRAInput:
+		var HRAInputData HRAInput
+		err = json.Unmarshal(DataWithType.Data, &HRAInputData)
+		return DataWithType.Type, HRAInputData
+	case MsgElevState:
+		var MsgElevStateData ElevStateMsg
+		err = json.Unmarshal(DataWithType.Data, &MsgElevStateData)
+		return DataWithType.Type, MsgElevStateData
+	case MsgHallReq:
+		var MsgHallReqData HallReqMsg
+		err = json.Unmarshal(DataWithType.Data, &MsgHallReqData)
+		return DataWithType.Type, MsgHallReqData
+	case MsgHallLigths:
+		var MsgHallLightsData HallReqMsg
+		err = json.Unmarshal(DataWithType.Data, &MsgHallLightsData)
+		return DataWithType.Type, MsgHallLightsData
+	case MsgAssignedHallReq:
+		var MsgAssignedHallReq [][2]bool
+		err = json.Unmarshal(DataWithType.Data, &MsgAssignedHallReq)
+		return DataWithType.Type, MsgAssignedHallReq
 	default:
-		return nil, fmt.Errorf("unknown type identifier")
+		return DataWithType.Type, nil
+	}
+}
+
+func DistributeMessages(jsonMessageCh chan []byte, toMbdFSMCh chan []byte, toFsmCh chan []byte) {
+	var dataWithType dataWithType
+
+	for {
+		select {
+		case jsonMsgReceived := <-jsonMessageCh:
+			err := json.Unmarshal(jsonMsgReceived, &dataWithType)
+			if err != nil {
+				fmt.Println("Error decoding json:", err)
+			}
+			switch dataWithType.Type {
+			case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
+				toMbdFSMCh <- jsonMsgReceived
+			case MsgHallLigths, MsgAssignedHallReq: // sende til fsm
+				toFsmCh <- jsonMsgReceived
+			}
+		}
 	}
 }

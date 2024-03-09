@@ -1,90 +1,105 @@
 package fsm
 
 import (
+	"Project/network/messages"
 	"Project/singleElevator/elevator"
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/requests"
 	"Project/singleElevator/tcp"
 	"Project/singleElevator/timer"
-	"Project/network/udpBroadcasr/udpNetwork/localip"
-
 	"encoding/json"
 	"fmt"
 	"net"
 )
 
-type HRAElevState struct {
-	Behavior    string `json:"behaviour"`
-	Floor       int    `json:"floor"`
-	Direction   string `json:"direction"`
-	CabRequests []bool `json:"cabRequests"`
-}
-
-type msgElevState struct {
-	ipAddr		string
-	elevState	HRAElevState
-}
-
-type msgHallReq struct {
-	tAdd_fRemove 	bool
-	floor			int
-	button			elevio.ButtonType
-}
-
-func SendElevState(msgEl msgElevState, conn net.Conn) {
-	jsonElevState, _ := json.Marshal(msgEl)
-	tcp.TCPSendMessage(conn, jsonElevState)
-}
-
-func SendHallRequests(msgReq msgHallReq, conn net.Conn){
-	jsonHallReq, _ := json.Marshal(msgReq)
-	tcp.TCPSendMessage(conn, jsonHallReq)
-}
+const MasterPort = "27300"
 
 var elev elevator.Elevator = elevator.InitElev()
-var hraElevState HRAElevState
-//var hallReqStruct msgHallReq
+var hraElevState messages.HRAElevState = messages.HRAElevState{
+	Behaviour:   elevator.EbToString(elev.State), // hraElevState.Behavior = elevator.EbToString(elev.State)
+	Floor:       elevio.GetFloor(), // hraElevState.Floor = elevio.GetFloor()
+	Direction:   elevator.DirnToString(elev.Dirn), // hraElevState.Direction = elevator.DirnToString(elev.Dirn)
+	CabRequests: elevator.GetCabRequests(elev), // hraElevState.CabRequests = elevator.GetCabRequests(elev)
+}
 
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, hraOutputCh chan [][2]bool, obstrCh chan bool, lightsCh chan [][2]bool, conn net.Conn) {
-	hraElevState.Direction = elevator.DirnToString(elev.Dirn)
-	hraElevState.Behavior = elevator.EbToString(elev.State)
-	hraElevState.CabRequests = elevator.GetCabRequests(elev)
-	hraElevState.Floor = elev.Floor
-	myIP, _ := localip.LocalIP();
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte,) {
+	// Waiting for master to be set and connecting to it
+	masterIP := <- masterIPCh
+	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+	if err != nil {
+		fmt.Println("Elevator could not connect to master:", err)
+	}
+	
+	// Single elevators Finite State Machine
 	for {
 		select {
 		case button := <-buttonsCh:
+			// Different approces to cab request and hall request
 			fmt.Printf("%+v\n", button)
 			if button.ButtonType == elevio.Cab {
+				// Updating master with the new cab request in the elevator
 				hraElevState.CabRequests[button.floor] = true
-				SendElevState(myIP, hraElevState, conn)
+				sendingBytes := messages.ToBytes(messages.MsgElevState, hraElevState)
+				tcp.TCPSendMessage(masterConn, sendingBytes)
+
+				// Handling the cab request
 				OnRequestButtonPress(button.floor, button.ButtonType) // dersom det er cabReq så skal den ta bestillingen selv
+				elevio.SetButtonLamp(button.floor, button.ButtonType, true)
 			} else {
-				hallReq := msgHallReq{true, button.floor, button.ButtonType}
-				SendHallRequests(hallReq, conn)
-			} 
+				// Sending the hall request to master
+				hallReq := messages.msgHallReq{true, button.floor, button.ButtonType}
+				sendingBytes := messages.ToBytes(messages.MsgHallReq, hallReq)
+				tcp.TCPSendMessage(masterConn, sendingBytes)
+			}
 		case floor := <-floorsCh:
+			// Updating master with the new state of the elevator
 			hraElevState.Floor = floor
-			SendElevState(myIP, hraElevState, conn)
-			OnFloorArrival(floor)
+			sendingBytes := messages.ToBytes(messages.MsgElevState, hraElevState)
+			tcp.TCPSendMessage(masterConn, sendingBytes)
+
+			// Handeling floor change and telling master if a hall request was removed
+			OnFloorArrival(floor, masterConn)
+
 			elevator.ElevatorPrint(elev)
+
 		case obstr := <-obstrCh:
+			// Reacting to the obstruction button
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			OnObstruction(obstr)
 			elevator.ElevatorPrint(elev)
-		case newHallRequests := <-hraOutputCh:
-			for floor := 0; floor < len(newHallRequests); floor++ {
-				for hallIndex := 0; hallIndex < len(newHallRequests[hallIndex]); hallIndex++ {
-					value := newHallRequests[floor][hallIndex]
-					if value { 
-						OnRequestButtonPress(floor, hallIndex) // legger til hallrequests fra Master og tar ordrene
+		case toFSM := <- toFSMCh:
+			// Handeling messages from master
+			msgType, data := messages.FromBytes(toFSM)
+			switch msgType {
+			case messages.MsgAssignedHallReq:
+				// Recieve hall requests from master
+				newHallRequests := data.([][2]bool) // Dette er ikke nodvendig egentlig
+				for floor := 0; floor < len(newHallRequests); floor++ {
+					for hallIndex := 0; hallIndex < len(newHallRequests[hallIndex]); hallIndex++ {
+						// Overwriting elevators hall requests as master could have given an order to another elevator
+						value := newHallRequests[floor][hallIndex]
+						if value {
+							OnRequestButtonPress(floor, hallIndex) // legger til hallrequests fra Master og tar ordrene
+						} else {
+							//Mutex lock??
+							elev.Requests[floor][hallIndex] = false
+						}
 					}
 				}
+				//elevator.ElevatorPrint(elev)
+			case messages.MsgHallLigths:
+				// Setting hall lights as master says
+				elevio.SetButtonLamp(data.Floor, data.Button, data.TAddFRemove)
 			}
-			elevator.ElevatorPrint(elev)
-		case lights := <- lightsCh:
-			SetLights(elev, lights)
+			
+		case masterIP := <-masterIPCh:
+			// Master has changed, need to make new connection
+			masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+			if err != nil {
+				fmt.Println("Elevator could not connect to master:", err)
+			}
+			go tcp.TCPReciveMessage(masterConn, jsonMessageCh)
 		}
 	}
 }
@@ -121,23 +136,10 @@ func SetAllLights(es elevator.Elevator) {
 	}
 }
 
-func SetLights(es elevator.Elevator, hallReq [][2]bool) { // maa sende inn hallReq som input
-	for floor := 0; floor < elevio.N_FLOORS; floor++ {
-		for btn := 0; btn < elevio.N_BUTTONS; btn++ { 
-			if btn == elevio.ButtonType.Cab {
-				elevio.SetButtonLamp(floor, elevio.ButtonType(btn), es.Requests[floor][btn])
-			} else {
-				elevio.SetButtonLamp(floor, elevio.ButtonType(btn), hallReq[floor][btn])
-			}
-		}
-	}
-}
 // Lysfunksjon med buttonType, floor, og on/off
-func SetLight(es elevator.Elevator, btn elevio.ButtonType, floor int, onOrOff bool){ 
-	btn == elevio.ButtonType.Cab
+func SetLight(btn elevio.ButtonType, floor int, onOrOff bool) {
 	elevio.SetButtonLamp(floor, elevio.ButtonType(btn), onOrOff)
 }
-
 
 func OnInitBetweenFloors() {
 	elevio.SetMotorDirection(elevio.Down)
@@ -183,7 +185,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 	fmt.Printf("\nNew state:\n")
 }
 
-func OnFloorArrival(newFloor int) {
+func OnFloorArrival(newFloor int, masterConn net.Conn) {
 	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
 
 	elev.Floor = newFloor
@@ -195,6 +197,13 @@ func OnFloorArrival(newFloor int) {
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
 			//If hall request: send ordre fullført til primary
+			// Updating the button light contract if a hall request was cleared
+			hallButton := requests.ShouldClearHallRequest(elev)
+			if hallButton != elevio.Cab {
+				removeHallReq := messages.msgHallReq(false, newFloor, hallButton)
+				sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+				tcp.TCPSendMessage(masterConn, sendingBytes)
+			}
 			elev = requests.ClearAtCurrentFloor(elev)
 			timer.Start(elev.Config.DoorOpenDuration)
 			// SetAllLights(elev)
@@ -248,39 +257,37 @@ func OnObstruction(obstructionState bool) {
 	elev.ObstructionActive = obstructionState
 }
 
-
 //func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
-	// hraElevState.Direction = elevator.DirnToString(elev.Dirn)
-	// hraElevState.Behavior = elevator.EbToString(elev.State)
+// hraElevState.Direction = elevator.DirnToString(elev.Dirn)
+// hraElevState.Behavior = elevator.EbToString(elev.State)
 
-	// for {
-	// 	select {
-	// 	case button := <-buttonsCh:
-	// 		fmt.Printf("%+v\n", button)
-	// 		if button.ButtonType == elevio.Cab {
-	// 			hraElevState.CabRequests[button.f] = true
-	// 		} else if button.ButtonType == elevio.HallUp {
-	// 			hraHallReq[button.f][0] = true
-	// 		} else if button.ButtonType == elevio.HallDown {
-	// 			hraHallReq[button.f][1] = true
-	// 		} // Kall paa sendElevUpdate til master
+// for {
+// 	select {
+// 	case button := <-buttonsCh:
+// 		fmt.Printf("%+v\n", button)
+// 		if button.ButtonType == elevio.Cab {
+// 			hraElevState.CabRequests[button.f] = true
+// 		} else if button.ButtonType == elevio.HallUp {
+// 			hraHallReq[button.f][0] = true
+// 		} else if button.ButtonType == elevio.HallDown {
+// 			hraHallReq[button.f][1] = true
+// 		} // Kall paa sendElevUpdate til master
 
-	// 		SendElevState(hraElevState)
-	// 		// FSM(button)
+// 		SendElevState(hraElevState)
+// 		// FSM(button)
 
-	// 	case floor := <-floorsCh:
-	// 		hraElevState.Floor = floor
-	// 		SendElevState(hraElevState)
-	// 		OnFloorArrival(floor)
-	// 		// Kall paa sendElevUpdate til master
-	// 		//case obstr := <-obstrCh:
-	// 		//fmt.Printf("Obstruction is %+v\n", obstr)
-	// 		//OnObstruction(obstr)
-	// 		//elevator.ElevatorPrint(elev)
-	// 	}
-	// }
+// 	case floor := <-floorsCh:
+// 		hraElevState.Floor = floor
+// 		SendElevState(hraElevState)
+// 		OnFloorArrival(floor)
+// 		// Kall paa sendElevUpdate til master
+// 		//case obstr := <-obstrCh:
+// 		//fmt.Printf("Obstruction is %+v\n", obstr)
+// 		//OnObstruction(obstr)
+// 		//elevator.ElevatorPrint(elev)
+// 	}
+// }
 // }
 
 // Endre slik at det ikke er FSM som tar inn channels som input, skal kunne kalles dersom master gir deg beskjed om det
 // Trenger altsaa et mellomledd, slik at statene sendes til master dersom noe skjer paa channels.
-

@@ -1,13 +1,13 @@
 package mbdFSM
 
 import (
+	"Project/network/messages"
 	"Project/network/tcp"
-	"encoding/json"
 	"fmt"
 	"net"
-	"strconv"
-	"Project/network/udpBroadcasr/udpNetwork/localip"
-	"Project/singleElevator/elevio"
+	"runtime"
+	"encoding/json"
+	"os/exec"
 )
 
 const MasterPort = "27300"
@@ -16,192 +16,97 @@ const DummyPort = "27302"
 
 var iPToConnMap map[net.Addr]net.Conn
 
-type HRAElevState struct {
-	Behaviour   string `json:"behaviour"`
-	Floor       int    `json:"floor"`
-	Direction   string `json:"direction"`
-	CabRequests []bool `json:"cabRequests"`
-}
+// var hraInput HRAInput
+var hraInput messages.HRAInput
+var allHallReqAndStates messages.HRAInput
 
-type HRAInput struct {
-	HallRequests [][2]bool               `json:"hallRequests"`
-	States       map[string]HRAElevState `json:"states"`
-}
-
-type msgElevState struct {
-	ipAddr		string			`json:"ipAdress"`
-	elevState	HRAElevState	`json:"elevState"`
-}
-
-type msgHallReq struct {
-	tAdd_fRemove 	bool				`json:"tAdd_fRemove"`
-	floor			int					`json:"floor"`
-	button			elevio.ButtonType	`json:"button"`
-}
-
-
-func SendElevState(ipAddr string, state HRAElevState, conn net.Conn) {
-	var stateMap map[string]HRAElevState
-	stateMap[ipAddr] = state
-	stateBytes, _ := json.Marshal(state)
-	tcp.TCPSendMessage(conn, stateBytes)
-}
-
-func SendHRAInputToBackup(input HRAInput, serverIP string, portNr string) {
-	inputBytes, _ := json.Marshal(input)
-	fmt.Println(inputBytes)
-}
-
-//var hraInput HRAInput
-var hraInput HRAInput
-var hraOutput map[string][][2]bool //string (nøkler) vil være IP-adressene
-
-
-func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessageCh chan []byte, hraOutputCh chan [][2]bool, lightsCh [][]bool) {
-	sortedAliveElevs := <-SortedAliveElevIPsCh
+func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
+	//sortedAliveElevs := <-SortedAliveElevIPsCh
+	var sortedAliveElevs []net.IP
 	MBD := <-MBDCh
-	//jsonMessage := <- jsonMessageCh
 	for {
+		masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
 		case "Master":
-			// Connection with elevators
-			iPToConnMap = make(map[net.Addr]net.Conn)
-			tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMessageCh)
+			allHallReqAndStates.States = make(map[string]messages.HRAElevState)
 			for {
 				select {
-				case jsonElevUpdate := <-jsonMessageCh:
-					var updatedElevState map[string]HRAElevState
-					if err := json.Unmarshal(jsonElevUpdate, &updatedElevState); err != nil {
-						fmt.Println("Error:", err)
-						continue
-					}
-					for elevIP, elevState := range updatedElevState { //ikke veldig elegant fordi mappet bare har en verdi
-						// Process key-value pair
-						hraInput.States[elevIP] = elevState
-					}
-					//extract hall req
-					//update hraInput
-				case sortedAliveElevs := <-SortedAliveElevIPsCh:
-					//skal bare bruke heisene som er i live når den kaller på cost fn
-					//send tilbake cab requests til heis hvis den kommer tilbake igjen og hadde eksisterende requests
+				case jsonMsg := <-toMbdFSMCh:
+					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
+					switch typeMsg {
+					case messages.MsgElevState:
+						allHallReqAndStates.States[dataMsg.IpAddr] = dataMsg.ElevState
+					case messages.MsgHallReq:
+						if dataMsg.TAddFRemove == true {
+							// Add the correct hall request in hraInput.HallRequests
+							allHallReqAndStates.HallRequests[dataMsg.Floor][dataMsg.Button] = true
+						} else {
+							// Remove the correct hall request in hraInput.HallRequests
+							allHallReqAndStates.HallRequests[dataMsg.Floor][dataMsg.Button] = false
+						}
+						// Sende lysoppdatering til alle heisene
+						// selve sendingen skjer i for-loopen lenger ned
+						jsonLightMsg := messages.ToBytes(messages.MsgHallLigths, dataMsg)
 
-				case roleChange := <- MBDCh:
-					/*
-						if roleChange != MBD {
-							MBD = roleChange
-							break
-						}*/
+						var inputToHRA messages.HRAInput
+						inputToHRA.HallRequests = allHallReqAndStates.HallRequests
+						for _, ip := range sortedAliveElevs {
+							inputToHRA.States[ip.String()] = allHallReqAndStates.States[ip.String()]
+						}
+						// Kall på Hall Request
+						output := RunHallRequestAssigner(inputToHRA)
+						fmt.Printf("output: \n")
+						for ipAddrString, hallRequest := range output {
+							ipAddr, _ := net.ResolveIPAddr("ip", ipAddrString) // String til net.Addr
+							jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
+							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
+							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonLightMsg)
+							// starte timer
+						}
+					}
+				case changeInAliveElevs := <-SortedAliveElevIPsCh:
+					sortedAliveElevs = changeInAliveElevs
+
+				case roleChange := <-MBDCh:
 					MBD = roleChange
 					break
 				}
 			}
-			//Unmarchal til riktig format
 
-			// Update state variable when new information is available - retry if failed
-
-			// Send information to backup
-			//go listener, for å ta imot states
-			//ta i mot elevator state og oppdater
-			// sjekke hraOutput og hvilke requests seg selv skal ta
 		case "Backup":
 			//ta imot hraInput og lagre
-			BackUpIP := sortedAliveElevs[1]
-			BackUpIPStr := BackUpIP.String()
+			allHallReqAndStates = messages.HRAInput{
+				HallRequests: [][2]bool,
+				States:       make(map[string]messages.HRAElevState),
+			}
+
 			for {
 				select {
-				case jsonMessage := <-jsonMessageCh:
-					var tempMap map[string]interface{}
-					err := json.Unmarshal(jsonMessage, &tempMap)
-					if err != nil {
-						fmt.Println("Error unmarshaling to a map:", err)
+				case jsonMsg := <-toMbdFSMCh:
+					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
+					switch typeMsg {
+					case messages.MsgHRAInput:
+						allHallReqAndStates = messages.HRAInput{
+							HallRequests: dataMsg.HallRequests,
+							States:       dataMsg.States,
+						}
 					}
-					if _, exists := tempMap["hallRequests"]; exists { //hvis nøkkelen hallRequests finnes -> en struct av typen HRAInput
-						json.Unmarshal(jsonMessage, &hraInput)
-					} else if _, exists := tempMap["hraOutput"]; exists { //hvis nøkkelen inneholder hraOutput
-						json.Unmarshal(jsonMessage, hraOutput)
-						myHallRequests := hraOutput[BackUpIPStr]
-						hraOutputCh <- myHallRequests
-						// maa kalle på noe for å kjøre single elevator med de nye requestene
-					} else if _, exists := tempMap["lights"]; exists {
-						json.Unmarshal(jsonMessage, )
-						lightsMsg := hraOutput[BackUpIPStr]
-						lightsCh <- lightsMsg
-
-					} 
 				case changeInAliveElevs := <-SortedAliveElevIPsCh:
 					sortedAliveElevs = changeInAliveElevs
-					BackUpIP = sortedAliveElevs[1]
-					BackUpIPStr = BackUpIP.String()
 
 				case roleChange := <-MBDCh:
-					/*if roleChange != MBD{
-						MBD = roleChange
-						break
-					}*/
 					MBD = roleChange
 					break
 				}
 			}
 
 		case "Dummy":
-			// Need to move some of these outside the for-loop, or delete things...
-			var dummyState HRAElevState
-			DummyIPs := sortedAliveElevs[2:] // Slice of IP-adresses for dummies
-			//dummyStateUpdateMap := make(map[string]HRAElevState)
-			stateUpdateCh := make(chan bool)
-			var dummyIPStr string
-
-			// This is the new koooode
-			var msgElevState msgElevState
-			dummyIP, _ := localip.LocalIP();  // Get elevator IP
-
-			// Set up TCP-connection with Master
-			masterConn := tcp.TCPMakeConncetion(sortedAliveElevs[0].String(), strconv.Itoa(MasterPort))
-
-			// How to get Dummy states?
-			// type msgElevState struct {
-			// 	ipAddr		string
-			// 	elevState	HRAElevState
-			// }
 			for {
 				select {
-				case <-stateUpdateCh: // Når det skjer en endring i elevator sine states, send ip + state til master
-					msgElevState.ipAddr = dummyIP
-
-					// Convert to marshal
-					jsonDummyStateUpdate, err := json.Marshal(msgElevState)
-					if err != nil {
-						fmt.Println("Error marshaling:", err)
-					}
-					// Send on channel
-					jsonMessageCh <- jsonDummyStateUpdate
-
-				case jsonMessage := <-jsonMessageCh:
-					tempMap := make(map[string]interface{})      // Temporarily map to hold the JSON data in order to determine its type
-					err := json.Unmarshal(jsonMessage, &tempMap) // Unmarshal the data sent from Master (via TCP) into the map
-					if err != nil {
-						fmt.Println("Error unmarshaling to a map:", err)
-					}
-					if _, exists := tempMap["hraOutput"]; exists { // If map contains the key "hraOutput"
-						json.Unmarshal(jsonMessage, hraOutput) // Unmarshal the data related to the dummy IP
-						if err != nil {
-							fmt.Println("Error unmarshaling:", err)
-						}
-						for _, dummyIP := range DummyIPs {
-							dummyIPStr = dummyIP.string()          // Gjør om IP til string-IP
-							myHallRequests = hraOutput[dummyIPStr] // Oppdaterer dummyState på angitt IP
-						}
-					}
-
 				case changeInAliveElevs := <-SortedAliveElevIPsCh: // Handles changes in the list of alive elevators.
 					sortedAliveElevs = changeInAliveElevs
-					DummyIPs = sortedAliveElevs[2:]
 
 				case roleChange := <-MBDCh: // Deals with a change in the role of the program
-					/*if roleChange != MBD {
-						MBD = roleChange
-						break
-					}*/
 					MBD = roleChange
 					break
 				}
@@ -209,4 +114,45 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMessageC
 
 		}
 	}
+}
+
+
+func RunHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
+
+	hraExecutable := ""
+	switch runtime.GOOS {
+	case "linux":
+		hraExecutable = "hall_request_assigner"
+	case "windows":
+		hraExecutable = "hall_request_assigner.exe"
+	default:
+		panic("OS not supported")
+	}
+
+	jsonBytes, err := json.Marshal(input)
+	if err != nil {
+		fmt.Println("json.Marshal error: ", err)
+		return nil
+	}
+
+	ret, err := exec.Command("./hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
+	if err != nil {
+		fmt.Println("exec.Command error: ", err)
+		fmt.Println(string(ret))
+		return nil
+	}
+
+	output := new(map[string][][2]bool)
+	err = json.Unmarshal(ret, &output)
+	if err != nil {
+		fmt.Println("json.Unmarshal error: ", err)
+		return nil
+	}
+	/*
+		fmt.Printf("output: \n")
+		for k, v := range *output {
+			fmt.Printf("%6v :  %+v\n", k, v)
+		}
+	*/
+	return *output
 }
