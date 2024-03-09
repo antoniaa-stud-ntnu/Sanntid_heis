@@ -16,17 +16,16 @@ func singleElevatorProcess() {
 	fmt.Println("In single elevator process")
 	elevio.Init("localhost:15657", elevio.N_FLOORS) //port
 
-
 	buttonsCh := make(chan elevio.ButtonEvent)
 	floorsCh := make(chan int)
 	obstrCh := make(chan bool)
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	MBDCh := make(chan string)
-	masterIPCH := make(chan net.IP)
+	masterIPCh := make(chan net.IP)
 	sortedAliveElevIPsCh := make(chan []net.IP)
 	jsonMessageCh := make(chan []byte)
-	toFsmCh := make(chan []byte)
+	toFSMCh := make(chan []byte)
 	toMbdFSMCh := make(chan []byte)
 
 	go elevio.PollRequestButtons(buttonsCh)
@@ -42,9 +41,9 @@ func singleElevatorProcess() {
 	}
 
 	fsm.InitLights()
-	go mbdFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, toMbdFSMCh, masterIPCH)
-	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCH, jsonMessageCh, toFsmCh) 
-	go messages.DistributeMessages(jsonMessageCh, toFsmCh, toMbdFSMCh)
+	go mbdFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, jsonMessageCh, toMbdFSMCh, masterIPCh)
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toFSMCh)
+	go messages.DistributeMessages(jsonMessageCh, toFSMCh, toMbdFSMCh)
 }
 
 func MBDProsess() {

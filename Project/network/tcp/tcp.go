@@ -7,11 +7,10 @@ import (
 	"os"
 )
 
-var iPToConnMap map[net.Addr]net.Conn
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
-func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[net.Addr]net.Conn) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+ masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
@@ -35,15 +34,15 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 		}
 		// Add connection to map with active connections
 		connectionsIP := conn.RemoteAddr()
-		iPToConnMap[connectionsIP] = conn
+		(*iPToConnMap)[connectionsIP] = conn
 
 		// Handle client connection in a goroutine
-		go TCPReciveMessage(conn, jsonMessageCh)
+		go TCPReciveMessage(conn, jsonMessageCh, iPToConnMap)
 	}
 }
 
 // Recieving messages and sending them on a channel for to be handeled else where
-func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om til at den mottar FSM-state
+func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[net.Addr]net.Conn) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
 
 	// Create a buffer to read data into
@@ -55,7 +54,7 @@ func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om t
 		if err != nil {
 			// Remove the connection from iPToConnMap of active connections
 			conn.Close()
-			delete(iPToConnMap, conn.RemoteAddr())
+			delete(*iPToConnMap, conn.RemoteAddr())
 
 			if err == io.EOF {
 				fmt.Println("Client closed the connection.")
@@ -64,7 +63,6 @@ func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte) { //Gjør om t
 			}
 			return
 		}
-
 		//fmt.Printf("Received: %s\n", buffer[:data])
 		jsonMessageCh <- buffer[:data]
 	}

@@ -10,10 +10,11 @@ import (
 )
 
 func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan string, SortedAliveElevIPsCh chan []net.IP) {
-
+	//fmt.Println("RoleDistributor started")
 	for {
 		select {
 		case p := <-peerUpdateToRoleDistributorCh:
+			//fmt.Printf("Peer update in role distributor:\n")
 			sortedIPs := make([]net.IP, 0, len(p.Peers))
 			for _, ip := range p.Peers {
 				sortedIPs = append(sortedIPs, net.ParseIP(ip))
@@ -29,6 +30,8 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			localIP := net.ParseIP(localIPstr) //lokal IP i samme format som sortedIPs
 
 			masterIP := sortedIPs[0]
+			//fmt.Println("Master IP: ", masterIP.String())
+
 			backupIP := net.IP{} //Backup is empty IP if there is only one peer
 			if len(sortedIPs) > 1 {
 				backupIP = sortedIPs[1]
@@ -48,7 +51,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 					changeNodeRole(sortedIPs[dummy], "Dummy")
 				}
 			}
-
+			//fmt.Println("Now checking if lost peer")
 			if len(p.Lost) > 0 {
 				//lostID, _ := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
 				lostIP := net.ParseIP(p.Lost[0])
@@ -64,8 +67,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
 				}
 			}
+			
 			if p.New != "" {
-				fmt.Println("I am inside new peer handler")
+				
 				newID := net.ParseIP(p.New)
 				if newID.Equal(masterIP) { //New master
 					changeNodeRole(masterIP, "Master")
@@ -84,18 +88,17 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 	}
 }
 
+// Hver gang det skjer en endring av antall heiser kalles denne
 
-	// Hver gang det skjer en endring av antall heiser kalles denne
-
-	// If one connection lost:
-	// If master is lost
-	// Backup take over
-	// else (backup lost)
-	// make a new backup
-	// else (dummy elevator)
-	// don't care
-	// If new connection:
-	// If the new elevator is master (and there are two masters now):
-	// deside which elevator is master
-	// else
-	// master is starting a TCP conntection to the dummy elevator
+// If one connection lost:
+// If master is lost
+// Backup take over
+// else (backup lost)
+// make a new backup
+// else (dummy elevator)
+// don't care
+// If new connection:
+// If the new elevator is master (and there are two masters now):
+// deside which elevator is master
+// else
+// master is starting a TCP conntection to the dummy elevator

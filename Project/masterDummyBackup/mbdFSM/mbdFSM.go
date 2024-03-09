@@ -20,14 +20,17 @@ var iPToConnMap map[net.Addr]net.Conn
 // var hraInput HRAInput
 var allHallReqAndStates messages.HRAInput
 
-func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
-	//sortedAliveElevs := <-SortedAliveElevIPsCh
-	var sortedAliveElevs []net.IP
+func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
+	iPToConnMap = make(map[net.Addr]net.Conn)
+	sortedAliveElevs := <-SortedAliveElevIPsCh
+	
+	//var sortedAliveElevs []net.IP
 	MBD := <-MBDCh
 	for {
 		masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
 		case "Master":
+			tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
 			allHallReqAndStates.States = make(map[string]messages.HRAElevState)
 			for {
 				select {
@@ -35,6 +38,7 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh c
 					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 					switch typeMsg {
 					case messages.MsgElevState:
+						
 						allHallReqAndStates.States[dataMsg.(messages.ElevStateMsg).IpAddr] = dataMsg.(messages.ElevStateMsg).ElevState
 					case messages.MsgHallReq:
 						if dataMsg.(messages.HallReqMsg).TAddFRemove == true {

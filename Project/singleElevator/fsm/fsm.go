@@ -7,6 +7,7 @@ import (
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/requests"
 	"Project/singleElevator/timer"
+	"Project/network/udpBroadcast/udpNetwork/localip"
 	"fmt"
 	"net"
 )
@@ -16,7 +17,7 @@ const MasterPort = "27300"
 var elev elevator.Elevator = elevator.InitElev()
 var hraElevState = messages.HRAElevState{
 	Behaviour:   elevator.EbToString(elev.State),  // hraElevState.Behavior = elevator.EbToString(elev.State)
-	Floor:       elevio.GetFloor(),                // hraElevState.Floor = elevio.GetFloor()
+	Floor:       elev.Floor,                // hraElevState.Floor = elevio.GetFloor()
 	Direction:   elevator.DirnToString(elev.Dirn), // hraElevState.Direction = elevator.DirnToString(elev.Dirn)
 	CabRequests: elevator.GetCabRequests(elev),    // hraElevState.CabRequests = elevator.GetCabRequests(elev)
 }
@@ -29,11 +30,22 @@ var hraElevState = messages.HRAElevState{
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte) {
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
-	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+
+	// Connecting to master
+	localip, _ := localip.LocalIP()
+	var masterConn net.Conn
+	var err error
+	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+	if masterIP.String() == localip {
+		masterConn, err = tcp.TCPMakeMasterConnection("localhost", MasterPort)
+	} else {
+		masterConn, err = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+	}
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
-
+	
+	fmt.Println(masterConn)
 	// Single elevators Finite State Machine
 	for {
 		select {
@@ -98,11 +110,16 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 
 		case masterIP := <-masterIPCh:
 			// Master has changed, need to make new connection
+			masterConn.Close()
 			masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
 			if err != nil {
 				fmt.Println("Elevator could not connect to master:", err)
 			}
-			go tcp.TCPReciveMessage(masterConn, jsonMessageCh)
+			iPToConnMap := make(map[net.Addr]net.Conn)
+			masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
+			iPToConnMap[masterip] = masterConn
+			go tcp.TCPReciveMessage(masterConn, jsonMessageCh, &iPToConnMap)
+			fmt.Println("Master has changed")
 		}
 	}
 }

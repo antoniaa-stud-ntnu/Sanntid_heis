@@ -85,7 +85,7 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 	}
 }
 
-func DistributeMessages(jsonMessageCh chan []byte, toMbdFSMCh chan []byte, toFsmCh chan []byte) {
+func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toMbdFSMCh chan []byte) {
 	var dataWithType dataWithType
 
 	for {
@@ -99,7 +99,7 @@ func DistributeMessages(jsonMessageCh chan []byte, toMbdFSMCh chan []byte, toFsm
 			case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
 				toMbdFSMCh <- jsonMsgReceived
 			case MsgHallLigths, MsgAssignedHallReq: // sende til fsm
-				toFsmCh <- jsonMsgReceived
+				toFSMCh <- jsonMsgReceived
 			}
 		}
 	}
