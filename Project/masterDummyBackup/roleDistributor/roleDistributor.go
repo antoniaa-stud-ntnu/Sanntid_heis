@@ -9,7 +9,7 @@ import (
 	"sort"
 )
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan string, SortedAliveElevIPsCh chan []net.IP) {
+func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan<- string, SortedAliveElevIPsCh chan<- []net.IP) {
 	//fmt.Println("RoleDistributor started")
 	for {
 		select {
@@ -31,13 +31,18 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 
 			masterIP := sortedIPs[0]
 			//fmt.Println("Master IP: ", masterIP.String())
-
+			fmt.Println("2")
 			backupIP := net.IP{} //Backup is empty IP if there is only one peer
 			if len(sortedIPs) > 1 {
 				backupIP = sortedIPs[1]
 			}
 
+			fmt.Println("Before sending")
+			for i, ip := range sortedIPs {
+				fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
+			}
 			SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
+			fmt.Println("After")
 
 			changeNodeRole := func(nodeID net.IP, role string) {
 				if nodeID.Equal(localIP) {
@@ -45,7 +50,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 					MBDCh <- role
 				}
 			}
-
+			fmt.Println("1")
 			setDummies := func(sortedIPs []net.IP) {
 				for dummy := 2; dummy < len(sortedIPs); dummy++ {
 					changeNodeRole(sortedIPs[dummy], "Dummy")
@@ -67,9 +72,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
 				}
 			}
-			
+
 			if p.New != "" {
-				
+
 				newID := net.ParseIP(p.New)
 				if newID.Equal(masterIP) { //New master
 					changeNodeRole(masterIP, "Master")

@@ -161,7 +161,6 @@ func SetAllLights(es elevator.Elevator) {
 
 
 
-
 // Lysfunksjon med buttonType, floor, og on/off
 func SetLight(btn elevio.ButtonType, floor int, onOrOff bool) {
 	elevio.SetButtonLamp(floor, elevio.ButtonType(btn), onOrOff)
@@ -208,7 +207,6 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 	}
 
 	// SetAllLights(elev)
-	fmt.Printf("\nNew state:\n")
 }
 
 func OnFloorArrival(newFloor int, masterConn net.Conn) {

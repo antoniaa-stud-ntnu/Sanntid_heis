@@ -20,25 +20,26 @@ var iPToConnMap map[net.Addr]net.Conn
 // var hraInput HRAInput
 var allHallReqAndStates messages.HRAInput
 
-func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
+func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
 	iPToConnMap = make(map[net.Addr]net.Conn)
-	sortedAliveElevs := <-SortedAliveElevIPsCh
-	
+	sortedAliveElevs := <- sortedAliveElevIPsCh
+
 	//var sortedAliveElevs []net.IP
 	MBD := <-MBDCh
 	for {
 		masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
 		case "Master":
+			fmt.Println("Inni master i mbdFSM")
 			tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
-			allHallReqAndStates.States = make(map[string]messages.HRAElevState)
+			//allHallReqAndStates.States = make(map[string]messages.HRAElevState)
 			for {
 				select {
 				case jsonMsg := <-toMbdFSMCh:
 					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 					switch typeMsg {
 					case messages.MsgElevState:
-						
+
 						allHallReqAndStates.States[dataMsg.(messages.ElevStateMsg).IpAddr] = dataMsg.(messages.ElevStateMsg).ElevState
 					case messages.MsgHallReq:
 						if dataMsg.(messages.HallReqMsg).TAddFRemove == true {
@@ -68,7 +69,8 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 							// starte timer
 						}
 					}
-				case changeInAliveElevs := <-SortedAliveElevIPsCh:
+				case changeInAliveElevs := <-sortedAliveElevIPsCh:
+					fmt.Println("Inni master i mbdFSM, i changeInAliveElevs")
 					sortedAliveElevs = changeInAliveElevs
 
 				case roleChange := <-MBDCh:
@@ -79,7 +81,7 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 
 		case "Backup":
 			//ta imot hraInput og lagre
-
+			fmt.Println("Inni backup i mbdFSM")
 			allHallReqAndStates = messages.HRAInput{
 				HallRequests: make([][2]bool, elevio.N_FLOORS),
 				States:       make(map[string]messages.HRAElevState),
@@ -96,8 +98,9 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 							States:       dataMsg.(messages.HRAInput).States,
 						}
 					}
-				case changeInAliveElevs := <-SortedAliveElevIPsCh:
+				case changeInAliveElevs := <-sortedAliveElevIPsCh:
 					sortedAliveElevs = changeInAliveElevs
+					fmt.Println("woilajksdoawlk")
 
 				case roleChange := <-MBDCh:
 					MBD = roleChange
@@ -106,9 +109,10 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 			}
 
 		case "Dummy":
+			fmt.Println("Inni dummy i mbdFSM")
 			for {
 				select {
-				case changeInAliveElevs := <-SortedAliveElevIPsCh: // Handles changes in the list of alive elevators.
+				case changeInAliveElevs := <-sortedAliveElevIPsCh: // Handles changes in the list of alive elevators.
 					sortedAliveElevs = changeInAliveElevs
 
 				case roleChange := <-MBDCh: // Deals with a change in the role of the program
