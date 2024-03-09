@@ -131,7 +131,7 @@ func GetCabRequests(es Elevator) []bool{
 	for floor := 0; floor < elevio.N_FLOORS; floor++{
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
 			if elevio.ButtonType(btn) == elevio.Cab {
-				cabRequests[floor] = es.Requests[floor][btn]
+				cabRequests = append(cabRequests, es.Requests[floor][btn])
 			}
 		}
 	}
