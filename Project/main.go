@@ -8,11 +8,14 @@ import (
 	"Project/network/udpBroadcast/udpNetwork/peers"
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/fsm"
+	"fmt"
 	"net"
 )
 
 func singleElevatorProcess() {
+	fmt.Println("In single elevator process")
 	elevio.Init("localhost:15657", elevio.N_FLOORS) //port
+
 
 	buttonsCh := make(chan elevio.ButtonEvent)
 	floorsCh := make(chan int)
@@ -32,7 +35,6 @@ func singleElevatorProcess() {
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, sortedAliveElevIPsCh)
 
-	//go fsm.CheckForTimeout() Denne kjører bare en gang
 	go fsm.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig
 
 	if elevio.GetFloor() == -1 {
@@ -41,7 +43,7 @@ func singleElevatorProcess() {
 
 	fsm.InitLights()
 	go mbdFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, toMbdFSMCh, masterIPCH)
-	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCH, jsonMessageCh, toFsmCh) // endre conn til å være den conn som returneres fra TCPconnection
+	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCH, jsonMessageCh, toFsmCh) 
 	go messages.DistributeMessages(jsonMessageCh, toFsmCh, toMbdFSMCh)
 }
 

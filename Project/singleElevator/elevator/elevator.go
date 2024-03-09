@@ -91,46 +91,7 @@ func ElevatorPrint(es Elevator) {
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
 			if (f == elevio.N_FLOORS-1 && btn == int(elevio.HallUp)) || (f == 0 && btn == int(elevio.HallDown)) {
 				fmt.Printf("|     ")
-			} else {type HRAElevState struct {
-				Behavior    string      `json:"behaviour"`
-				Floor       int         `json:"floor"` 
-				Direction   string      `json:"direction"`
-				CabRequests []bool      `json:"cabRequests"`
-			}
-			
-			var elev elevator.Elevator = elevator.InitElev()
-			var hraElevState HRAElevState
-			
-			
-			var hraHallReq [][2]bool
-			
-			func checkChannels(buttonsCh chan elevio.ButtonEvent, floorsCh chan int) {
-				hraElevState.Direction = elevator.DirnToString(elev.Dirn)
-				hraElevState.Behavior = elevator.EbToString(elev.State)
-				for {
-					select {
-					case button := <-buttonsCh:
-						//FSM(<- button, )
-						if button.ButtonType == elevio.Cab{
-							hraElevState.CabRequests[button.f] = true
-						} else if button.ButtonType == elevio.HallUp {
-							hraHallReq[button.f][0] = true
-						} else if button.ButtonType == elevio.HallDown {
-							hraHallReq[button.f][1] = true
-						} // Kall paa sendElevUpdate til master
-						sendElevState()
-						
-					case floor := <-floorsCh:
-						hraElevState.Floor = floor
-						// Kall paa sendElevUpdate til master
-					//case obstr := <-obstrCh:
-						//fmt.Printf("Obstruction is %+v\n", obstr)
-						//OnObstruction(obstr)
-						//elevator.ElevatorPrint(elev)
-					}
-				} 
-				
-			}
+			} else {
 				if es.Requests[f][btn] {
 					fmt.Printf("|  #  ")
 				} else {
@@ -140,6 +101,7 @@ func ElevatorPrint(es Elevator) {
 		}
 		fmt.Printf("|\n")
 	}
+
 	fmt.Printf(" +--------------------+\n")
 }
 
@@ -158,9 +120,9 @@ func InitElev() Elevator {
 		State:    			Idle,
 		ObstructionActive: 	false,
 		Config: 			Config{
-			ClearRequestVariant: CV_All,
-			DoorOpenDuration:    3.0,
-							},
+						ClearRequestVariant: CV_All,
+						DoorOpenDuration:    3.0,
+						},
 	}
 }
 
@@ -168,8 +130,8 @@ func GetCabRequests(es Elevator) []bool{
 	var cabRequests []bool
 	for floor := 0; floor < elevio.N_FLOORS; floor++{
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
-			if btn == elevio.Cab {
-				cabRequests.pushback[floor] = es.Requests[floor][btn]
+			if elevio.ButtonType(btn) == elevio.Cab {
+				cabRequests[floor] = es.Requests[floor][btn]
 			}
 		}
 	}

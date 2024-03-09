@@ -3,11 +3,12 @@ package mbdFSM
 import (
 	"Project/network/messages"
 	"Project/network/tcp"
+	"Project/singleElevator/elevio"
+	"encoding/json"
 	"fmt"
 	"net"
-	"runtime"
-	"encoding/json"
 	"os/exec"
+	"runtime"
 )
 
 const MasterPort = "27300"
@@ -17,7 +18,6 @@ const DummyPort = "27302"
 var iPToConnMap map[net.Addr]net.Conn
 
 // var hraInput HRAInput
-var hraInput messages.HRAInput
 var allHallReqAndStates messages.HRAInput
 
 func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
@@ -35,14 +35,14 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh c
 					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 					switch typeMsg {
 					case messages.MsgElevState:
-						allHallReqAndStates.States[dataMsg.IpAddr] = dataMsg.ElevState
+						allHallReqAndStates.States[dataMsg.(messages.ElevStateMsg).IpAddr] = dataMsg.(messages.ElevStateMsg).ElevState
 					case messages.MsgHallReq:
-						if dataMsg.TAddFRemove == true {
+						if dataMsg.(messages.HallReqMsg).TAddFRemove == true {
 							// Add the correct hall request in hraInput.HallRequests
-							allHallReqAndStates.HallRequests[dataMsg.Floor][dataMsg.Button] = true
+							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = true
 						} else {
 							// Remove the correct hall request in hraInput.HallRequests
-							allHallReqAndStates.HallRequests[dataMsg.Floor][dataMsg.Button] = false
+							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = false
 						}
 						// Sende lysoppdatering til alle heisene
 						// selve sendingen skjer i for-loopen lenger ned
@@ -75,8 +75,9 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh c
 
 		case "Backup":
 			//ta imot hraInput og lagre
+
 			allHallReqAndStates = messages.HRAInput{
-				HallRequests: [][2]bool,
+				HallRequests: make([][2]bool, elevio.N_FLOORS),
 				States:       make(map[string]messages.HRAElevState),
 			}
 
@@ -87,8 +88,8 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh c
 					switch typeMsg {
 					case messages.MsgHRAInput:
 						allHallReqAndStates = messages.HRAInput{
-							HallRequests: dataMsg.HallRequests,
-							States:       dataMsg.States,
+							HallRequests: dataMsg.(messages.HRAInput).HallRequests,
+							States:       dataMsg.(messages.HRAInput).States,
 						}
 					}
 				case changeInAliveElevs := <-SortedAliveElevIPsCh:
@@ -115,7 +116,6 @@ func MBD_FSM(MBDCh chan string, SortedAliveElevIPsCh chan []net.IP, toMbdFSMCh c
 		}
 	}
 }
-
 
 func RunHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
 
