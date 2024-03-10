@@ -19,7 +19,6 @@ const MasterPort = "20025"
 
 var elev elevator.Elevator = elevator.InitElev()
 
-
 var hraElevState = messages.HRAElevState{
 	Behaviour:   elevator.EbToString(elev.State),  // hraElevState.Behavior = elevator.EbToString(elev.State)
 	Floor:       elev.Floor,                       // hraElevState.Floor = elevio.GetFloor()
@@ -27,9 +26,9 @@ var hraElevState = messages.HRAElevState{
 	CabRequests: elevator.GetCabRequests(elev),    // hraElevState.CabRequests = elevator.GetCabRequests(elev)
 }
 
-var msgElevState = messages.ElevStateMsg {
-	IpAddr:      "",
-	ElevState:   hraElevState,
+var msgElevState = messages.ElevStateMsg{
+	IpAddr:    "",
+	ElevState: hraElevState,
 }
 
 // hraElevState.Behavior = elevator.EbToString(elev.State)
@@ -40,29 +39,29 @@ var msgElevState = messages.ElevStateMsg {
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte) {
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
 	// Connecting to master
 	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-	
+
 	localip, _ := localip.LocalIP()
 	var masterConn net.Conn
 	msgElevState.IpAddr = localip
 	var err error
 	/*
-	if masterIP.String() == localip {
-		//fmt.Println(masterIP.String(), localip)
-		masterConn,_ = tcp.TCPMakeMasterConnection("localhost", MasterPort)
-		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
-	} else {
-		masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
-	}*/
+		if masterIP.String() == localip {
+			//fmt.Println(masterIP.String(), localip)
+			masterConn,_ = tcp.TCPMakeMasterConnection("localhost", MasterPort)
+			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+		} else {
+			masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+		}*/
 	masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+	go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
-	
+
 	//fmt.Println("Masterconn is: ", masterConn)
 	// Single elevators Finite State Machine
 	for {
@@ -177,8 +176,6 @@ func SetAllLights(es elevator.Elevator) {
 	}
 }
 
-
-
 // Lysfunksjon med buttonType, floor, og on/off
 func SetLight(btn elevio.ButtonType, floor int, onOrOff bool) {
 	elevio.SetButtonLamp(floor, elevio.ButtonType(btn), onOrOff)
@@ -214,7 +211,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 		case elevator.DoorOpen:
 			elevio.SetDoorOpenLamp(true)
 			timer.Start(elev.Config.DoorOpenDuration)
-			elev = requests.ClearAtCurrentFloor(elev)
+			elev, _ = requests.ClearAtCurrentFloor(elev)
 
 		case elevator.Moving:
 			elevio.SetMotorDirection(elev.Dirn)
@@ -238,46 +235,57 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
+			/*
+				for btnIndex, btnValue := range elev.Requests[elev.Floor] {
+					buttonType := elevio.ButtonType(btnIndex)
+					if btnValue && ((buttonType == elevio.HallDown && elev.Dirn == elevio.Down) || (buttonType == elevio.HallUp && elev.Dirn == elevio.Up)) {
+						removeHallReq := messages.HallReqMsg{false, newFloor, buttonType}
+						sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+						tcp.TCPSendMessage(masterConn, sendingBytes)
+					} else if btnValue && buttonType == elevio.Cab{
+						elevio.SetButtonLamp(elev.Floor, buttonType, false)
+					}
 
-			for btnIndex, btnValue := range elev.Requests[elev.Floor] {
+				}*/
+			/*
+				// Updating the button light contract with the master and the elevator
+				for requestsOnfloor := range elev.Requests[elev.Floor] {
+					if requestsOnfloor[elevio.HallDown] || requestsOnfloor[elevio.HallUp]{
+						removeHallReq := messages.HallReqMsg{false, newFloor, button}
+						sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+						tcp.TCPSendMessage(masterConn, sendingBytes)
+					}
+					if requestsOnfloor[elevio.Cab]{
+
+					}
+				}
+
+
+				hallButton := requests.ShouldClearRequest(elev)
+				if hallButton == elevio.HallDown || hallButton == elevio.HallUp{
+					removeHallReq := messages.HallReqMsg{false, newFloor, hallButton}
+					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+					tcp.TCPSendMessage(masterConn, sendingBytes)
+				} else if hallButton == elevio.Cab{
+					elevio.SetButtonLamp(elev.Floor, hallButton, false)
+				}
+			*/
+			var removingHallButtons [2]bool
+			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
+			for btnIndex, btnValue := range removingHallButtons {
 				buttonType := elevio.ButtonType(btnIndex)
-				if btnValue && (buttonType == elevio.HallDown || buttonType == elevio.HallUp) {
+				if btnValue {
 					removeHallReq := messages.HallReqMsg{false, newFloor, buttonType}
 					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
 					tcp.TCPSendMessage(masterConn, sendingBytes)
-				} else if btnValue && buttonType == elevio.Cab{
-					elevio.SetButtonLamp(elev.Floor, buttonType, false)
+					fmt.Println("Sending to master that hall req is complete: ", string(sendingBytes))
 				}
-				
-			}
-			/*
-			// Updating the button light contract with the master and the elevator
-			for requestsOnfloor := range elev.Requests[elev.Floor] {
-				if requestsOnfloor[elevio.HallDown] || requestsOnfloor[elevio.HallUp]{
-					removeHallReq := messages.HallReqMsg{false, newFloor, button}
-					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-					tcp.TCPSendMessage(masterConn, sendingBytes)
-				}
-				if requestsOnfloor[elevio.Cab]{
-					
-				}
-			}
-			
 
-			hallButton := requests.ShouldClearRequest(elev)
-			if hallButton == elevio.HallDown || hallButton == elevio.HallUp{
-				removeHallReq := messages.HallReqMsg{false, newFloor, hallButton}
-				sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-				tcp.TCPSendMessage(masterConn, sendingBytes)
-			} else if hallButton == elevio.Cab{
-				elevio.SetButtonLamp(elev.Floor, hallButton, false)
 			}
-			*/
-			elev = requests.ClearAtCurrentFloor(elev)
-
 
 			timer.Start(elev.Config.DoorOpenDuration)
 			// SetAllLights(elev)
+			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
 		}
 	default:
@@ -302,7 +310,7 @@ func OnDoorTimeout() {
 		switch elev.State {
 		case elevator.DoorOpen:
 			timer.Start(elev.Config.DoorOpenDuration)
-			elev = requests.ClearAtCurrentFloor(elev)
+			elev, _ = requests.ClearAtCurrentFloor(elev)
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
 		case elevator.Moving:

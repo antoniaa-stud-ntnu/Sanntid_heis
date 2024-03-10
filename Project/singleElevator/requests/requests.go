@@ -106,7 +106,8 @@ func ShouldClearImmediately(e elevator.Elevator, btn_floor int, btn_type elevio.
 	}
 }
 
-func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
+func ClearAtCurrentFloor(e elevator.Elevator) (elevator.Elevator, [2]bool) {
+	removingHallButtons := [2]bool{false, false}
 	switch e.Config.ClearRequestVariant {
 	case elevator.CV_All:
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
@@ -118,19 +119,25 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 		case elevio.Up:
 			if !requestsAbove(e) && !e.Requests[e.Floor][elevio.HallUp] {
 				e.Requests[e.Floor][elevio.HallDown] = false
+				removingHallButtons[int(elevio.HallDown)] = true
 			}
 			e.Requests[e.Floor][elevio.HallUp] = false
+			removingHallButtons[int(elevio.HallUp)] = true
 		case elevio.Down:
 			if !requestsBelow(e) && !e.Requests[e.Floor][elevio.HallDown] {
 				e.Requests[e.Floor][elevio.HallUp] = false
+				removingHallButtons[0] = true
 			}
 			e.Requests[e.Floor][elevio.HallDown] = false
+			removingHallButtons[int(elevio.HallDown)] = true
 		case elevio.Stop:
 		default:
 			e.Requests[e.Floor][elevio.HallUp] = false
 			e.Requests[e.Floor][elevio.HallDown] = false
+			removingHallButtons[int(elevio.HallUp)] = true
+			removingHallButtons[int(elevio.HallDown)] = true
 		}
 	default:
 	}
-	return e
+	return e, removingHallButtons
 }

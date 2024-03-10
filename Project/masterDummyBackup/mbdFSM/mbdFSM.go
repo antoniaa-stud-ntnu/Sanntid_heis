@@ -30,9 +30,10 @@ var allHallReqAndStates = messages.HRAInput{
 func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
 	
 	
-	sortedAliveElevs := <-sortedAliveElevIPsCh
+	//fmt.Println("First time recieving sortedAliveElevs: ", sortedAliveElevs)
 
 	MBD := <-MBDCh
+	sortedAliveElevs := <-sortedAliveElevIPsCh
 	for {
 		//masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
@@ -62,6 +63,7 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 							//fmt.Println(allHallReqAndStates)
 							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = true
 						} else {
+							fmt.Println("A hall request should be removed")
 							// Remove the correct hall request in hraInput.HallRequests
 							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = false
 						}
@@ -86,9 +88,9 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 						for ipAddr, hallRequest := range output {
 							jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
-							fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
+							//fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonLightMsg)
-							//fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
+							fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
 							// starte timer
 						}
 					}
