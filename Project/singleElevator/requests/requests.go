@@ -89,15 +89,8 @@ func ShouldStop(e elevator.Elevator) bool {
 	}
 }
 
-func ShouldClearRequest(e elevator.Elevator) elevio.ButtonType {
-	if e.Requests[e.Floor][elevio.HallDown] {
-		return elevio.HallDown
-	} else if e.Requests[e.Floor][elevio.HallUp] {
-		return elevio.HallUp
-	} else if e.Requests[e.Floor][elevio.Cab]{
-		return elevio.Cab
-	}
-	return -1
+func ShouldClearRequest(e elevator.Elevator) []bool {
+	return e.Requests[e.Floor]
 }
 
 func ShouldClearImmediately(e elevator.Elevator, btn_floor int, btn_type elevio.ButtonType) bool {
@@ -128,7 +121,7 @@ func ClearAtCurrentFloor(e elevator.Elevator) elevator.Elevator {
 			}
 			e.Requests[e.Floor][elevio.HallUp] = false
 		case elevio.Down:
-			if !requestsAbove(e) && !e.Requests[e.Floor][elevio.HallDown] {
+			if !requestsBelow(e) && !e.Requests[e.Floor][elevio.HallDown] {
 				e.Requests[e.Floor][elevio.HallUp] = false
 			}
 			e.Requests[e.Floor][elevio.HallDown] = false

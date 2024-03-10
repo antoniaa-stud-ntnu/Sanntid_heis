@@ -3,25 +3,33 @@ package fsm
 import (
 	"Project/network/messages"
 	"Project/network/tcp"
+	"Project/network/udpBroadcast/udpNetwork/localip"
 	"Project/singleElevator/elevator"
 	"Project/singleElevator/elevio"
 	"Project/singleElevator/requests"
 	"Project/singleElevator/timer"
-	"Project/network/udpBroadcast/udpNetwork/localip"
 	"fmt"
 	"net"
+	"time"
 )
 
 //"Project/network/udpBroadcast/udpNetwork/localip"
 
-const MasterPort = "27300"
+const MasterPort = "20025"
 
 var elev elevator.Elevator = elevator.InitElev()
+
+
 var hraElevState = messages.HRAElevState{
 	Behaviour:   elevator.EbToString(elev.State),  // hraElevState.Behavior = elevator.EbToString(elev.State)
-	Floor:       elev.Floor,                // hraElevState.Floor = elevio.GetFloor()
+	Floor:       elev.Floor,                       // hraElevState.Floor = elevio.GetFloor()
 	Direction:   elevator.DirnToString(elev.Dirn), // hraElevState.Direction = elevator.DirnToString(elev.Dirn)
 	CabRequests: elevator.GetCabRequests(elev),    // hraElevState.CabRequests = elevator.GetCabRequests(elev)
+}
+
+var msgElevState = messages.ElevStateMsg {
+	IpAddr:      "",
+	ElevState:   hraElevState,
 }
 
 // hraElevState.Behavior = elevator.EbToString(elev.State)
@@ -32,33 +40,41 @@ var hraElevState = messages.HRAElevState{
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte) {
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
-
+	time.Sleep(2*time.Second)
 	// Connecting to master
 	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
 	
 	localip, _ := localip.LocalIP()
 	var masterConn net.Conn
+	msgElevState.IpAddr = localip
 	var err error
+	/*
 	if masterIP.String() == localip {
-		masterConn, err = tcp.TCPMakeMasterConnection("localhost", MasterPort)
+		//fmt.Println(masterIP.String(), localip)
+		masterConn,_ = tcp.TCPMakeMasterConnection("localhost", MasterPort)
+		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
 	} else {
-		masterConn, err = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-	}
+		masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+	}*/
+	masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+		go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
 	
-	fmt.Println("Masterconn is: ", masterConn)
+	//fmt.Println("Masterconn is: ", masterConn)
 	// Single elevators Finite State Machine
 	for {
 		select {
 		case button := <-buttonsCh:
 			// Different approces to cab request and hall request
-			fmt.Printf("%+v\n", button)
+			//fmt.Printf("%+v\n", button)
 			if button.Button == elevio.Cab {
 				// Updating master with the new cab request in the elevator
-				hraElevState.CabRequests[button.Floor] = true
-				sendingBytes := messages.ToBytes(messages.MsgElevState, hraElevState)
+				msgElevState.ElevState.CabRequests[button.Floor] = true
+				sendingBytes := messages.ToBytes(messages.MsgElevState, msgElevState)
+				//fmt.Println(string(sendingBytes))
 				tcp.TCPSendMessage(masterConn, sendingBytes)
 
 				// Handling the cab request
@@ -69,11 +85,12 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				hallReq := messages.HallReqMsg{true, button.Floor, button.Button}
 				sendingBytes := messages.ToBytes(messages.MsgHallReq, hallReq)
 				tcp.TCPSendMessage(masterConn, sendingBytes)
+				//fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
 			}
 		case floor := <-floorsCh:
 			// Updating master with the new state of the elevator
-			hraElevState.Floor = floor
-			sendingBytes := messages.ToBytes(messages.MsgElevState, hraElevState)
+			msgElevState.ElevState.Floor = floor
+			sendingBytes := messages.ToBytes(messages.MsgElevState, msgElevState)
 			tcp.TCPSendMessage(masterConn, sendingBytes)
 
 			// Handeling floor change and telling master if a hall request was removed
@@ -118,10 +135,11 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			if err != nil {
 				fmt.Println("Elevator could not connect to master:", err)
 			}
-			iPToConnMap := make(map[net.Addr]net.Conn)
-			masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
-			iPToConnMap[masterip] = masterConn
-			go tcp.TCPReciveMessage(masterConn, jsonMessageCh, &iPToConnMap)
+			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+			//iPToConnMap := make(map[net.Addr]net.Conn)
+			//masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
+			//iPToConnMap[masterip] = masterConn
+			//go tcp.TCPReciveMessage(masterConn, jsonMessageCh, &iPToConnMap)
 			fmt.Println("Master has changed")
 		}
 	}
@@ -129,7 +147,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 
 func InitLights() {
 	elevio.SetDoorOpenLamp(false)
-	SetAllLights(elev)
+	SetAllLights(elev) // endres ???
 }
 
 func CheckForTimeout() bool {
@@ -173,7 +191,7 @@ func OnInitBetweenFloors() {
 }
 
 func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
-	fmt.Printf("\n\n%s(%d, %s)\n", "fsmOnRequestButtonPress", btnFloor, elevator.ButtonToString(btnType))
+	//fmt.Printf("\n\n%s(%d, %s)\n", "fsmOnRequestButtonPress", btnFloor, elevator.ButtonToString(btnType))
 
 	switch elev.State {
 	case elevator.DoorOpen:
@@ -210,7 +228,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 }
 
 func OnFloorArrival(newFloor int, masterConn net.Conn) {
-	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
+	//fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
 
 	elev.Floor = newFloor
 	elevio.SetFloorIndicator(elev.Floor)
@@ -221,7 +239,31 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
 
+			for btnIndex, btnValue := range elev.Requests[elev.Floor] {
+				buttonType := elevio.ButtonType(btnIndex)
+				if btnValue && (buttonType == elevio.HallDown || buttonType == elevio.HallUp) {
+					removeHallReq := messages.HallReqMsg{false, newFloor, buttonType}
+					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+					tcp.TCPSendMessage(masterConn, sendingBytes)
+				} else if btnValue && buttonType == elevio.Cab{
+					elevio.SetButtonLamp(elev.Floor, buttonType, false)
+				}
+				
+			}
+			/*
 			// Updating the button light contract with the master and the elevator
+			for requestsOnfloor := range elev.Requests[elev.Floor] {
+				if requestsOnfloor[elevio.HallDown] || requestsOnfloor[elevio.HallUp]{
+					removeHallReq := messages.HallReqMsg{false, newFloor, button}
+					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
+					tcp.TCPSendMessage(masterConn, sendingBytes)
+				}
+				if requestsOnfloor[elevio.Cab]{
+					
+				}
+			}
+			
+
 			hallButton := requests.ShouldClearRequest(elev)
 			if hallButton == elevio.HallDown || hallButton == elevio.HallUp{
 				removeHallReq := messages.HallReqMsg{false, newFloor, hallButton}
@@ -230,6 +272,7 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 			} else if hallButton == elevio.Cab{
 				elevio.SetButtonLamp(elev.Floor, hallButton, false)
 			}
+			*/
 			elev = requests.ClearAtCurrentFloor(elev)
 
 

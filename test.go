@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"Project/singleElevator/elevio"
 	//"bytes"
 	//"encoding/binary"
 )
@@ -15,6 +14,7 @@ const MasterPort = "27300"
 const HRAInputType = "HRAInput"
 const MsgElevStateType = "msgElevState"
 const MsgHallReqType = "msgHallReq"
+const MsgHallReq = "HallReq"                 // To master --> to MBDfsm
 
 var iPToConnMap map[net.Addr]net.Conn
 
@@ -35,11 +35,7 @@ type msgElevState struct {
 	ElevState HRAElevState `json:"elevState"`
 }
 
-type msgHallReq struct {
-	TAddFRemove bool              `json:"tAdd_fRemove"`
-	Floor       int               `json:"floor"`
-	Button      elevio.ButtonType `json:"button"`
-}
+
 
 type dataWithType struct {
 	Type string          `json:"type"`
@@ -160,14 +156,6 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 		var MsgElevStateData msgElevState
 		err = json.Unmarshal(DataWithType.Data, &MsgElevStateData)
 		return DataWithType.Type, MsgElevStateData
-	case "msgHallReq":
-		var MsgHallReqData msgHallReq
-		err = json.Unmarshal(DataWithType.Data, &MsgHallReqData)
-		return DataWithType.Type, MsgHallReqData
-	case "msgHallLights":
-		var MsgHallLightsData msgHallReq
-		err = json.Unmarshal(DataWithType.Data, &MsgHallLightsData)
-		return DataWithType.Type, MsgHallLightsData
 	default:
 		return DataWithType.Type, nil
 	}
@@ -191,7 +179,17 @@ var input = HRAInput{
 	},
 }
 
-//var hallReqs := {{false, false}, {true, false}, {false, false}, {false, true}}
+var input2 = HRAInput{
+	HallRequests: [][2]bool{{false, false}, {true, false}},
+	States: map[string]HRAElevState{
+		"one": HRAElevState{
+			Behaviour:   "moving",
+			Floor:       2,
+			Direction:   "up",
+			CabRequests: []bool{false, false, false, true},
+		},
+	},	
+}
 
 func main() {
 
@@ -215,6 +213,10 @@ func main() {
 		iPToConnMap = make(map[net.Addr]net.Conn)
 		go TCPListenForConnectionsAndHandle("20016", jsonMessageCh)
 		fmt.Println("tcp listener running")
+		
+		// Perform operations on each conn
+		// For example, you can send a message to each conn
+
 		for {
 			select {
 			case msg := <-jsonMessageCh:
@@ -223,20 +225,45 @@ func main() {
 				switch msgType {
 				case HRAInputType:
 					
-					fmt.Println("message is: ", data.(HRAInput).HallRequests)
+					fmt.Println("message is: ", data.(HRAInput))
 					
-				//fmt.Println("message is: ", msgType.(HRAInput).HallRequests)
-
+				//fmt.Println("message is: ", msgType.(HRAInput)var hallReqs = [[false, false], [true, false]].HallRequests)
+					for _, conn := range iPToConnMap {
+						sendingBytes := ToBytes(HRAInputType,input)
+						TCPSendMessage(conn, sendingBytes)
+					}
 				}
 			}
 		}
 	case "1":
 		conn, _ := TCPMakeMasterConnection("localhost", "20016")
 		fmt.Println("Connected to server")
-		//inputBytes := ToBytes("HRAInput", hallReqs)
+		inputBytes := ToBytes("HRAInput", input2)
 		TCPSendMessage(conn, inputBytes)
 		fmt.Println("Written to server", string(inputBytes[:]))
-		conn.Close()
+		go TCPReciveMessage(conn, jsonMessageCh)
+		for {
+			select {
+			case msg := <-jsonMessageCh:
+				fmt.Println("New message received")
+				msgType, data := FromBytes(msg)
+				switch msgType {
+				case HRAInputType:
+					
+					fmt.Println("message is: ", data.(HRAInput))
+					
+				//fmt.Println("message is: ", msgType.(HRAInput)var hallReqs = [[false, false], [true, false]].HallRequests)
+
+				}
+			}
+		}
 		
+	}
+}
+
+func newFunction() {
+	for _, conn := range iPToConnMap {
+
+		TCPSendMessage(conn, []byte("Hello"))
 	}
 }

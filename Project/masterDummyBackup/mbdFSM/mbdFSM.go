@@ -9,41 +9,57 @@ import (
 	"net"
 	"os/exec"
 	"runtime"
+	"time"
 )
 
-const MasterPort = "27300"
+// const MasterPort = "27300"
+const MasterPort = "20025"
 const BackupPort = "27301"
 const DummyPort = "27302"
 
-var iPToConnMap map[net.Addr]net.Conn
+//var iPToConnMap map[net.Addr]net.Conn
 
 // var hraInput HRAInput
-var allHallReqAndStates messages.HRAInput
+var allHallReqAndStates = messages.HRAInput{
+	HallRequests: make([][2]bool, elevio.N_FLOORS),
+	States:       make(map[string]messages.HRAElevState),
+}
+
+
 
 func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
-	iPToConnMap = make(map[net.Addr]net.Conn)
-	sortedAliveElevs := <- sortedAliveElevIPsCh
+	
+	
+	sortedAliveElevs := <-sortedAliveElevIPsCh
 
-	//var sortedAliveElevs []net.IP
 	MBD := <-MBDCh
 	for {
-		masterIPCh <- sortedAliveElevs[0]
+		//masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
 		case "Master":
 			fmt.Println("Inni master i mbdFSM")
-			tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
-			//allHallReqAndStates.States = make(map[string]messages.HRAElevState)
+			iPToConnMap := make(map[string]net.Conn)
+			go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
+			time.Sleep(3 * time.Second)
+			masterIPCh <- sortedAliveElevs[0]
+			
 			for {
 				select {
 				case jsonMsg := <-toMbdFSMCh:
 					typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 					switch typeMsg {
 					case messages.MsgElevState:
-
+						//fmt.Println(dataMsg)
+						//fmt.Println("Master rceived a MsgElevState on mdbFSMCh")
+						//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)
+						//fmt.Println("State: ", dataMsg.(messages.ElevStateMsg).ElevState)
 						allHallReqAndStates.States[dataMsg.(messages.ElevStateMsg).IpAddr] = dataMsg.(messages.ElevStateMsg).ElevState
+						//fmt.Println(allHallReqAndStates)
 					case messages.MsgHallReq:
-						if dataMsg.(messages.HallReqMsg).TAddFRemove == true {
+						fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
+						if dataMsg.(messages.HallReqMsg).TAddFRemove {
 							// Add the correct hall request in hraInput.HallRequests
+							//fmt.Println(allHallReqAndStates)
 							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = true
 						} else {
 							// Remove the correct hall request in hraInput.HallRequests
@@ -52,20 +68,27 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 						// Sende lysoppdatering til alle heisene
 						// selve sendingen skjer i for-loopen lenger ned
 						jsonLightMsg := messages.ToBytes(messages.MsgHallLigths, dataMsg)
-
-						var inputToHRA messages.HRAInput
+						//fmt.Println("jsonLightsMsg is: ", string(jsonLightMsg))
+						
+						var inputToHRA = messages.HRAInput{
+							HallRequests: make([][2]bool, elevio.N_FLOORS),           
+							States:       make(map[string]messages.HRAElevState), 
+						}
+						
 						inputToHRA.HallRequests = allHallReqAndStates.HallRequests
 						for _, ip := range sortedAliveElevs {
 							inputToHRA.States[ip.String()] = allHallReqAndStates.States[ip.String()]
 						}
 						// Kall på Hall Request
 						output := RunHallRequestAssigner(inputToHRA)
-						fmt.Printf("output: \n")
-						for ipAddrString, hallRequest := range output {
-							ipAddr, _ := net.ResolveIPAddr("ip", ipAddrString) // String til net.Addr
+						
+						//fmt.Println("Output: ", output)
+						for ipAddr, hallRequest := range output {
 							jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
+							fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonLightMsg)
+							//fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
 							// starte timer
 						}
 					}
@@ -80,12 +103,10 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 			}
 
 		case "Backup":
+			//Sjekk om dette funker eller om man skal ha en wait for å være sikker på at master sin server kjører
+			masterIPCh <- sortedAliveElevs[0]
 			//ta imot hraInput og lagre
 			fmt.Println("Inni backup i mbdFSM")
-			allHallReqAndStates = messages.HRAInput{
-				HallRequests: make([][2]bool, elevio.N_FLOORS),
-				States:       make(map[string]messages.HRAElevState),
-			}
 
 			for {
 				select {
@@ -100,7 +121,7 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 					}
 				case changeInAliveElevs := <-sortedAliveElevIPsCh:
 					sortedAliveElevs = changeInAliveElevs
-					fmt.Println("woilajksdoawlk")
+					fmt.Println("Inni backup i mbdFSM, i changeInAliveElevs")
 
 				case roleChange := <-MBDCh:
 					MBD = roleChange
@@ -110,10 +131,12 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 
 		case "Dummy":
 			fmt.Println("Inni dummy i mbdFSM")
+			masterIPCh <- sortedAliveElevs[0]
 			for {
 				select {
 				case changeInAliveElevs := <-sortedAliveElevIPsCh: // Handles changes in the list of alive elevators.
 					sortedAliveElevs = changeInAliveElevs
+					fmt.Println("Inni dummy i mbdFSM, i changeInAliveElevs")
 
 				case roleChange := <-MBDCh: // Deals with a change in the role of the program
 					MBD = roleChange
@@ -143,7 +166,7 @@ func RunHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
 		return nil
 	}
 
-	ret, err := exec.Command("./hall_request_assigner/"+hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
+	ret, err := exec.Command(hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)
 		fmt.Println(string(ret))

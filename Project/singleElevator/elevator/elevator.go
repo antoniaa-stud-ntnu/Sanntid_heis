@@ -51,11 +51,11 @@ func EbToString(eb Behaviour) string {
 func DirnToString(dir elevio.MotorDirection) string {
 	switch dir {
 	case elevio.Up:
-		return "Up"
+		return "up"
 	case elevio.Down:
-		return "Down"
+		return "down"
 	case elevio.Stop:
-		return "Stop"
+		return "stop"
 	default:
 		return "UNDEFINED"
 	}

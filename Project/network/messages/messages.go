@@ -4,6 +4,7 @@ import (
 	"Project/singleElevator/elevio"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const MsgHRAInput = "HRAInput"               // To backup --> to MBDfsm
@@ -49,6 +50,10 @@ func ToBytes(structType string, msg interface{}) []byte {
 	}
 
 	finalJSONBytes, _ := json.Marshal(dataToSend)
+
+	// Add delimiter to the end of the message
+	finalJSONBytes = append(finalJSONBytes, '&')
+
 	return finalJSONBytes
 }
 
@@ -56,7 +61,6 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 	var DataWithType dataWithType
 	err := json.Unmarshal(jsonBytes, &DataWithType)
 	if err != nil {
-		// Handle error
 		return DataWithType.Type, nil
 	}
 	switch DataWithType.Type {
@@ -66,7 +70,9 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 		return DataWithType.Type, HRAInputData
 	case MsgElevState:
 		var MsgElevStateData ElevStateMsg
+		//fmt.Println("Before unmarshalling elevstate: ", string(DataWithType.Data))
 		err = json.Unmarshal(DataWithType.Data, &MsgElevStateData)
+		//fmt.Println("After unmarshalling elevstate: ", MsgElevStateData)
 		return DataWithType.Type, MsgElevStateData
 	case MsgHallReq:
 		var MsgHallReqData HallReqMsg
@@ -87,20 +93,55 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 
 func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toMbdFSMCh chan []byte) {
 	var dataWithType dataWithType
-
+	
 	for {
 		select {
 		case jsonMsgReceived := <-jsonMessageCh:
+			fmt.Println(string(jsonMsgReceived))
+			// Split the jsonMsgReceived string on the '&' character to get separate strings for each JSON object
+			jsonObjects := strings.Split(string(jsonMsgReceived), "&")
+			// Loop over the jsonObjects slice
+			for _, jsonObject := range jsonObjects {
+				if jsonObject != "" {
+					//fmt.Println("jsonObject is: ", jsonObject)
+					// Unmarshal the jsonObject string
+					err := json.Unmarshal([]byte(jsonObject), &dataWithType)
+					if err != nil {
+						
+						fmt.Println("Error decoding json:", err)
+						break
+					}
+
+					switch dataWithType.Type {
+						case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
+							toMbdFSMCh <- []byte(jsonObject)
+							//fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithType.Type)
+						case MsgHallLigths, MsgAssignedHallReq: // sende til fsm
+							toFSMCh <- []byte(jsonObject)
+							//fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithType.Type)
+					}
+				}
+				
+			}
+
+/*
+			fmt.Println("JsonMsgRecieved is: ", string(jsonMsgReceived))
 			err := json.Unmarshal(jsonMsgReceived, &dataWithType)
+			fmt.Println("Datatypen som unmarshels: ", dataWithType.Type)
+			fmt.Println("Dataen som unmarshels: ", string(dataWithType.Data))
 			if err != nil {
+				
 				fmt.Println("Error decoding json:", err)
+				os.Exit(55)
 			}
 			switch dataWithType.Type {
 			case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
 				toMbdFSMCh <- jsonMsgReceived
+				fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithType.Type)
 			case MsgHallLigths, MsgAssignedHallReq: // sende til fsm
 				toFSMCh <- jsonMsgReceived
-			}
+				fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithType.Type)
+			}*/
 		}
 	}
 }

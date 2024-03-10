@@ -7,9 +7,8 @@ import (
 	"os"
 )
 
-
 // Master opening a listening server and saving+handling incomming connections from all the elevators
-func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[net.Addr]net.Conn) {
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+ masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
@@ -24,27 +23,29 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 	defer listener.Close()
 
 	fmt.Printf("Server is listening on port %s\n", masterPort)
-
+	
 	for {
 		// Accept incoming connections
 		conn, err := listener.Accept()
+		
 		if err != nil {
 			fmt.Printf("Could not accept connection: %s\n", err)
 			continue
 		}
+		fmt.Println("Master accepted new connection: ", conn)
 		// Add connection to map with active connections
-		connectionsIP := conn.RemoteAddr()
-		(*iPToConnMap)[connectionsIP] = conn
-
+		connIPString := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
+		(*iPToConnMap)[connIPString] = conn
+		fmt.Println("iPToConnMap is updated to: ", iPToConnMap)
 		// Handle client connection in a goroutine
 		go TCPReciveMessage(conn, jsonMessageCh, iPToConnMap)
 	}
 }
 
 // Recieving messages and sending them on a channel for to be handeled else where
-func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[net.Addr]net.Conn) { //Gjør om til at den mottar FSM-state
+func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[string]net.Conn) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
-
+	//fmt.Println("In TCP recieve message")
 	// Create a buffer to read data into
 	buffer := make([]byte, 65536)
 
@@ -54,7 +55,7 @@ func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *m
 		if err != nil {
 			// Remove the connection from iPToConnMap of active connections
 			conn.Close()
-			delete(*iPToConnMap, conn.RemoteAddr())
+			delete(*iPToConnMap, ((conn.RemoteAddr().(*net.TCPAddr)).IP).String())
 
 			if err == io.EOF {
 				fmt.Println("Client closed the connection.")
@@ -81,6 +82,30 @@ func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
 	}
 
 	return conn, err
+}
+
+func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
+	defer conn.Close()
+	//fmt.Println("In TCP recieve message")
+	// Create a buffer to read data into
+	buffer := make([]byte, 65536)
+
+	for {
+		// Read data from the client
+		data, err := conn.Read(buffer)
+		if err != nil {
+			// Remove the connection from iPToConnMap of active connections
+			conn.Close()
+			if err == io.EOF {
+				fmt.Println("Client closed the connection.")
+			} else {
+				fmt.Println("Error:", err)
+			}
+			return
+		}
+		//fmt.Printf("Received: %s\n", buffer[:data])
+		jsonMessageCh <- buffer[:data]
+	}
 }
 
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
