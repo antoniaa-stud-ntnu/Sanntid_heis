@@ -120,7 +120,7 @@ func InitElev() Elevator {
 		State:    			Idle,
 		ObstructionActive: 	false,
 		Config: 			Config{
-						ClearRequestVariant: CV_All,
+						ClearRequestVariant: CV_InDirn,
 						DoorOpenDuration:    3.0,
 						},
 	}

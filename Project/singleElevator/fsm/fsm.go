@@ -85,7 +85,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				hallReq := messages.HallReqMsg{true, button.Floor, button.Button}
 				sendingBytes := messages.ToBytes(messages.MsgHallReq, hallReq)
 				tcp.TCPSendMessage(masterConn, sendingBytes)
-				//fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
+				// fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
 			}
 		case floor := <-floorsCh:
 			// Updating master with the new state of the elevator
@@ -116,6 +116,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 						value := newHallRequests[floor][hallIndex]
 						if value {
 							OnRequestButtonPress(floor, elevio.ButtonType(hallIndex)) // legger til hallrequests fra Master og tar ordrene
+							// fmt.Println("Checking if the request is true in elev.Requests: ", elev.Requests[floor][hallIndex])
 						} else {
 							//Mutex lock??
 							elev.Requests[floor][hallIndex] = false
@@ -236,7 +237,7 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
-		
+			fmt.Println("The elevators request list at this floor is: ", elev.Requests[newFloor])
 			var removingHallButtons [2]bool
 			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
 			for btnIndex, btnValue := range removingHallButtons {

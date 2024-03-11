@@ -3,6 +3,7 @@ package requests
 import (
 	"Project/singleElevator/elevator"
 	"Project/singleElevator/elevio"
+	//"fmt"
 )
 
 type DirnBehaviourPair struct {
@@ -119,23 +120,23 @@ func ClearAtCurrentFloor(e elevator.Elevator) (elevator.Elevator, [2]bool) {
 		case elevio.Up:
 			if !requestsAbove(e) && !e.Requests[e.Floor][elevio.HallUp] {
 				e.Requests[e.Floor][elevio.HallDown] = false
-				removingHallButtons[int(elevio.HallDown)] = true
+				removingHallButtons[elevio.HallDown] = true
 			}
 			e.Requests[e.Floor][elevio.HallUp] = false
-			removingHallButtons[int(elevio.HallUp)] = true
+			removingHallButtons[elevio.HallUp] = true
 		case elevio.Down:
 			if !requestsBelow(e) && !e.Requests[e.Floor][elevio.HallDown] {
 				e.Requests[e.Floor][elevio.HallUp] = false
-				removingHallButtons[0] = true
+				removingHallButtons[elevio.HallUp] = true
 			}
 			e.Requests[e.Floor][elevio.HallDown] = false
-			removingHallButtons[int(elevio.HallDown)] = true
+			removingHallButtons[elevio.HallDown] = true
 		case elevio.Stop:
 		default:
 			e.Requests[e.Floor][elevio.HallUp] = false
 			e.Requests[e.Floor][elevio.HallDown] = false
-			removingHallButtons[int(elevio.HallUp)] = true
-			removingHallButtons[int(elevio.HallDown)] = true
+			removingHallButtons[elevio.HallUp] = true
+			removingHallButtons[elevio.HallDown] = true
 		}
 	default:
 	}
