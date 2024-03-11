@@ -104,7 +104,7 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 			}
 			return
 		}
-		fmt.Printf("Received: %s\n", buffer[:data])
+		//fmt.Printf("Received: %s\n", buffer[:data])
 		msg := make([]byte, data)
 		copy(msg, buffer[:data])
 		jsonMessageCh <- msg
@@ -115,7 +115,6 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	// Send data to the other side of the conncetion
 	_, err := conn.Write(sendingData)
-	fmt.Println("Sending message: ", string(sendingData))
 	if err != nil {
 		fmt.Println("Error sending data to server:", err)
 		return
