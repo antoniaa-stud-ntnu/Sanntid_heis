@@ -53,7 +53,19 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 						//fmt.Println("Master rceived a MsgElevState on mdbFSMCh")
 						//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)
 						//fmt.Println("State: ", dataMsg.(messages.ElevStateMsg).ElevState)
-						allHallReqAndStates.States[dataMsg.(messages.ElevStateMsg).IpAddr] = dataMsg.(messages.ElevStateMsg).ElevState
+						updatingIPAddr := dataMsg.(messages.ElevStateMsg).IpAddr
+						updatingElevState := dataMsg.(messages.ElevStateMsg).ElevState
+
+						allHallReqAndStates.States[updatingIPAddr] = updatingElevState
+
+						// Sending update to backup if backup exists (will not exist if elevator is witout internet)
+						if len(sortedAliveElevs) > 1 {
+							backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
+							backupConn := iPToConnMap[string(sortedAliveElevs[1].String())]
+							tcp.TCPSendMessage(backupConn, backupMsg)
+						}
+						
+
 						//fmt.Println(allHallReqAndStates)
 					case messages.MsgHallReq:
 						// fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
@@ -66,6 +78,14 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 							// Remove the correct hall request in hraInput.HallRequests
 							allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = false
 						}
+
+						// Sending update to backup if backup exists (will not exist if elevator is witout internet)
+						if len(sortedAliveElevs) > 1 {
+							backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
+							backupConn := iPToConnMap[string(sortedAliveElevs[1].String())]
+							tcp.TCPSendMessage(backupConn, backupMsg)
+						}
+
 						// Sende lysoppdatering til alle heisene
 						// selve sendingen skjer i for-loopen lenger ned
 						jsonLightMsg := messages.ToBytes(messages.MsgHallLigths, dataMsg)
@@ -92,10 +112,11 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 							// fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
 							// starte timer
 						}
+
 					}
 				case changeInAliveElevs := <-sortedAliveElevIPsCh:
 					sortedAliveElevs = changeInAliveElevs
-					fmt.Println(sortedAliveElevs)
+					fmt.Println("Change in sortedAliveElevs: ", sortedAliveElevs)
 
 				case roleChange := <-MBDCh:
 					MBD = roleChange

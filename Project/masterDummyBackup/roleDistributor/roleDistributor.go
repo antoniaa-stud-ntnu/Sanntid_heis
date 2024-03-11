@@ -116,6 +116,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			}
 		}
 		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
+		fmt.Println("Sent updated SortedAliveElevs to MBD_FSM")
 		oldMasterIP = masterIP
 		oldBackupIP = backupIP
 	}
