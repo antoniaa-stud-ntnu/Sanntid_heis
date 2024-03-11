@@ -10,7 +10,7 @@ import (
 )
 
 func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan<- string, SortedAliveElevIPsCh chan<- []net.IP) {
-	//fmt.Println("RoleDistributor started")
+	fmt.Println("RoleDistributor started")
 	for {
 		select {
 		case p := <-peerUpdateToRoleDistributorCh:

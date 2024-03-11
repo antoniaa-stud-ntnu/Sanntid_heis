@@ -28,12 +28,14 @@ var allHallReqAndStates = messages.HRAInput{
 
 
 func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh chan []byte, toMbdFSMCh chan []byte, masterIPCh chan net.IP) {
-	
+	fmt.Println("MBD FSM running")
 	
 	//fmt.Println("First time recieving sortedAliveElevs: ", sortedAliveElevs)
 
 	MBD := <-MBDCh
+	fmt.Println("MBDCh recieved")
 	sortedAliveElevs := <-sortedAliveElevIPsCh
+	fmt.Println("Sorted alive Ch recieved")
 	for {
 		//masterIPCh <- sortedAliveElevs[0]
 		switch MBD {
@@ -102,6 +104,7 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 					MBD = roleChange
 					break
 				}
+				//break
 			}
 
 		case "Backup":
