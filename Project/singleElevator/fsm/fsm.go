@@ -140,7 +140,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			//iPToConnMap := make(map[net.Addr]net.Conn)
 			//masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
 			//iPToConnMap[masterip] = masterConn
-			//go tcp.TCPReciveMessage(masterConn, jsonMessageCh, &iPToConnMap)
+			//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, &iPToConnMap)
 			fmt.Println("Master has changed")
 		}
 	}

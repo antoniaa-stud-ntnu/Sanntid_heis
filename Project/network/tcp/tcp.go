@@ -38,12 +38,12 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 		(*iPToConnMap)[connIPString] = conn
 		fmt.Println("iPToConnMap is updated to: ", iPToConnMap)
 		// Handle client connection in a goroutine
-		go TCPReciveMessage(conn, jsonMessageCh, iPToConnMap)
+		go TCPRecieveMessage(conn, jsonMessageCh, iPToConnMap)
 	}
 }
 
 // Recieving messages and sending them on a channel for to be handeled else where
-func TCPReciveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[string]net.Conn) { //Gjør om til at den mottar FSM-state
+func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[string]net.Conn) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
 	//fmt.Println("In TCP recieve message")
 	// Create a buffer to read data into
@@ -121,7 +121,7 @@ func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	}
 }
 
-// Forskjellen: TCPReciveMessage Den bruker en fast-størrelse buffer ([]byte) for å lese data fra tilkoblingen.
+// Forskjellen: TCPRecieveMessage Den bruker en fast-størrelse buffer ([]byte) for å lese data fra tilkoblingen.
 //  Dette betyr at den leser opptil 1024 byte om gangen, uavhengig av hvor mye data som faktisk er sendt av klienten per melding.
 // Mens handleConnection leser og behandler en hel melding avsluttet med en ny linje (/n)
 

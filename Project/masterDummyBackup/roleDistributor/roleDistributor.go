@@ -20,10 +20,14 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 
 	localElevInPeers := false
 	fmt.Println(localIP, localElevInPeers)
+
+	var oldMasterIP net.IP
+	var oldBackupIP net.IP
+	
 	//time.Sleep(1 * time.Second)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
-		fmt.Println("Peer Update to role: ", p)
+		fmt.Println("Peer Update to role, peers: ", p.Peers)
 
 		//fmt.Printf("Peer update in role distributor:\n")
 
@@ -60,15 +64,14 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		}
 
 		//SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-		fmt.Println("After")
 
 		changeNodeRole := func(nodeID net.IP, role string) {
+			fmt.Printf("nodeID-%s == localIP-%s \n", nodeID.String(), localIP.String())
 			if nodeID.Equal(localIP) {
 				fmt.Printf("I am now changing role to %v\n", role)
 				MBDCh <- role
 			}
 		}
-		fmt.Println("1")
 		setDummies := func(sortedIPs []net.IP) {
 			for dummy := 2; dummy < len(sortedIPs); dummy++ {
 				changeNodeRole(sortedIPs[dummy], "Dummy")
@@ -78,16 +81,23 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		if len(p.Lost) > 0 {
 			//lostID, _ := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
 			lostIP := net.ParseIP(p.Lost[0])
-			fmt.Printf("I am inside len(p.lost) > 0 \n")
-			if bytes.Compare(lostIP, masterIP) == -1 { //Master lost, backup take over
+			fmt.Println("I am inside len(p.lost) > 0, lostIP :", lostIP)
+			fmt.Printf("Inside len(p.lost) > 0, lostIP-%d, oldMasterIP-%d, oldBackupIP-%d ", lostIP, oldMasterIP, oldBackupIP)
+			if lostIP.Equal(oldMasterIP) { //Master lost, backup take over
 				fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
 				changeNodeRole(masterIP, "Master")
 				changeNodeRole(backupIP, "Backup")
 				setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
-			} else if bytes.Compare(lostIP, backupIP) == -1 { //Master intact, but backup lost
+			} else if lostIP.Equal(oldBackupIP) { //Master intact, but backup lost
 				fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
-				changeNodeRole(backupIP, "Backup")
-				setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
+				fmt.Println(len(sortedIPs))
+				if len(sortedIPs) > 1 {
+					changeNodeRole(backupIP, "Backup")
+					
+				}
+				if len(sortedIPs) > 2 {
+					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
+				}
 			}
 		}
 
@@ -100,14 +110,14 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			} else if newID.Equal(backupIP) { //New backup
 				changeNodeRole(backupIP, "Backup")
 			}
-
 			if !newID.Equal(masterIP) && !newID.Equal(backupIP) { //New dummy
 				//changeNodeRole(newID, 2)
 				setDummies(sortedIPs)
 			}
 		}
 		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-
+		oldMasterIP = masterIP
+		oldBackupIP = backupIP
 	}
 }
 
