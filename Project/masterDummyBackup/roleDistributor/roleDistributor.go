@@ -22,8 +22,8 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 
 	for {
 		p := <-peerUpdateToRoleDistributorCh
-		//fmt.Printf("Peer update in role distributor:\n")
-
+		fmt.Println(p)
+		
 		// Extracting IP adresses from peers and finding out if local IP is within
 		sortedIPs := make([]net.IP, 0, len(p.Peers))
 		for _, ip := range p.Peers {
