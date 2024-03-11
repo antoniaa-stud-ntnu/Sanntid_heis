@@ -9,6 +9,7 @@ import (
 	"net"
 	"os/exec"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -38,7 +39,8 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 		switch MBD {
 		case "Master":
 			iPToConnMap := make(map[string]net.Conn)
-			go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
+			var mutex = &sync.Mutex{}
+			go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutex)
 			time.Sleep(3 * time.Second)
 			fmt.Println(sortedAliveElevs[0])
 			masterIPCh <- sortedAliveElevs[0]
@@ -61,7 +63,11 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 						// Sending update to backup if backup exists (will not exist if elevator is witout internet)
 						if len(sortedAliveElevs) > 1 {
 							backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
+
+							mutex.Lock()
 							backupConn := iPToConnMap[string(sortedAliveElevs[1].String())]
+							mutex.Unlock()
+
 							tcp.TCPSendMessage(backupConn, backupMsg)
 						}
 						

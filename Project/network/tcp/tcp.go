@@ -5,10 +5,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 )
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
-func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn) {
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
@@ -32,18 +33,21 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 			fmt.Printf("Could not accept connection: %s\n", err)
 			continue
 		}
-		fmt.Println("Master accepted new connection: ", conn)
+		//fmt.Println("Master accepted new connection: ", conn)
 		// Add connection to map with active connections
-		connIPString := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
-		(*iPToConnMap)[connIPString] = conn
-		fmt.Println("iPToConnMap is updated to: ", iPToConnMap)
+		connectionsIP := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
+		//fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
+		mutex.Lock()
+		(*iPToConnMap)[connectionsIP] = conn
+		mutex.Unlock()
+		//fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
 		// Handle client connection in a goroutine
-		go TCPRecieveMessage(conn, jsonMessageCh, iPToConnMap)
+		go TCPRecieveMessage(conn, jsonMessageCh, iPToConnMap, mutex)
 	}
 }
 
 // Recieving messages and sending them on a channel for to be handeled else where
-func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[string]net.Conn) { //Gjør om til at den mottar FSM-state
+func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex) { //Gjør om til at den mottar FSM-state
 	defer conn.Close()
 	//fmt.Println("In TCP recieve message")
 	// Create a buffer to read data into
@@ -55,7 +59,10 @@ func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, iPToConnMap *
 		if err != nil {
 			// Remove the connection from iPToConnMap of active connections
 			conn.Close()
+
+			mutex.Lock()
 			delete(*iPToConnMap, ((conn.RemoteAddr().(*net.TCPAddr)).IP).String())
+			mutex.Unlock()
 
 			if err == io.EOF {
 				fmt.Println("Client closed the connection.")
