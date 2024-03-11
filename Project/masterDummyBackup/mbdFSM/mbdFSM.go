@@ -39,6 +39,8 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 Loop:
 	for {
 		//masterIPCh <- sortedAliveElevs[0]
+
+		fmt.Println("Switching to ", MBD)
 		switch MBD {
 		case "Master":
 			var mutexIPConn = &sync.Mutex{}
@@ -58,14 +60,17 @@ Loop:
 					go masterHandlingMsg(jsonMsg, &iPToConnMap, mutexIPConn, &sortedAliveElevs, mutexSortedElevs)
 
 				case changeInAliveElevs := <-sortedAliveElevIPsCh:
-					mutexSortedElevs.Lock()
-					sortedAliveElevs = changeInAliveElevs
-					mutexSortedElevs.Unlock()
-					fmt.Println("Change in sortedAliveElevs: ", sortedAliveElevs)
+					go func() {
+						mutexSortedElevs.Lock()
+						sortedAliveElevs = changeInAliveElevs
+						mutexSortedElevs.Unlock()
+						fmt.Println("Change in sortedAliveElevs: ", sortedAliveElevs)
+					}()
 
 				case roleChange := <-MBDCh:
 					fmt.Println("Master recieved role change to ", roleChange)
 					MBD = roleChange
+					fmt.Printf("MBD: %s, now breaking loop \n", MBD)
 					break Loop
 				}
 			}
@@ -200,6 +205,7 @@ func lookForClosedConns(iPToConnMap *map[string]net.Conn, mutexIPConn *sync.Mute
 		if err != nil {
 
 			mutexIPConn.Lock()
+			fmt.Println("Deleting a conn: ", (*iPToConnMap))
 			delete((*iPToConnMap), ip)
 			mutexIPConn.Unlock()
 		}

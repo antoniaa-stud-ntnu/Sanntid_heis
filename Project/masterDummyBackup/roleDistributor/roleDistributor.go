@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	//"time"
 )
 
 func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan<- string, SortedAliveElevIPsCh chan<- []net.IP) {
@@ -63,6 +64,10 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		//	fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
 		//}
 
+		fmt.Println("Before sending updated SortedAliveElevs to MBD_FSM")
+		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
+		fmt.Println("Sent updated SortedAliveElevs to MBD_FSM")
+
 		//SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
 
 		changeNodeRole := func(nodeID net.IP, role string) {
@@ -116,8 +121,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 				setDummies(sortedIPs)
 			}
 		}
-		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-		fmt.Println("Sent updated SortedAliveElevs to MBD_FSM")
+		//time.Sleep(3*time.Second)
+		
+
 		oldMasterIP = masterIP
 		oldBackupIP = backupIP
 	}
