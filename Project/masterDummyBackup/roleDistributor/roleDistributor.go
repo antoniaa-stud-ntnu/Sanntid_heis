@@ -59,17 +59,18 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		}
 
 		//fmt.Println("Before sending")
-		for i, ip := range sortedIPs {
-			fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
-		}
+		//for i, ip := range sortedIPs {
+		//	fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
+		//}
 
 		//SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
 
 		changeNodeRole := func(nodeID net.IP, role string) {
-			fmt.Printf("nodeID-%s == localIP-%s \n", nodeID.String(), localIP.String())
+			//fmt.Printf("nodeID-%s == localIP-%s \n", nodeID.String(), localIP.String())
 			if nodeID.Equal(localIP) {
 				fmt.Printf("I am now changing role to %v\n", role)
 				MBDCh <- role
+				fmt.Println("Sent role change to MBDCh")
 			}
 		}
 		setDummies := func(sortedIPs []net.IP) {
@@ -81,16 +82,16 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		if len(p.Lost) > 0 {
 			//lostID, _ := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
 			lostIP := net.ParseIP(p.Lost[0])
-			fmt.Println("I am inside len(p.lost) > 0, lostIP :", lostIP)
-			fmt.Printf("Inside len(p.lost) > 0, lostIP-%d, oldMasterIP-%d, oldBackupIP-%d ", lostIP, oldMasterIP, oldBackupIP)
+			//fmt.Println("I am inside len(p.lost) > 0, lostIP :", lostIP.String())
+			//fmt.Printf("Inside len(p.lost) > 0, lostIP-%d, oldMasterIP-%d, oldBackupIP-%d ", lostIP.String(), oldMasterIP.String(), oldBackupIP.String())
 			if lostIP.Equal(oldMasterIP) { //Master lost, backup take over
-				fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
+				//fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
 				changeNodeRole(masterIP, "Master")
 				changeNodeRole(backupIP, "Backup")
 				setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
 			} else if lostIP.Equal(oldBackupIP) { //Master intact, but backup lost
-				fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
-				fmt.Println(len(sortedIPs))
+				//fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
+				//fmt.Println(len(sortedIPs))
 				if len(sortedIPs) > 1 {
 					changeNodeRole(backupIP, "Backup")
 					

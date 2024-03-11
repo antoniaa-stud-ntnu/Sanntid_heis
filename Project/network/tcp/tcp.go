@@ -120,10 +120,14 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 }
 
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
-	// Send data to the other side of the conncetion
+	// Send data to the other side of the connection
 	_, err := conn.Write(sendingData)
 	if err != nil {
-		fmt.Println("Error sending data to server:", err)
+		if err == io.EOF {
+			fmt.Println("Connection closed by the server.")
+		} else {
+			fmt.Println("Error sending data to server:", err)
+		}
 		return
 	}
 }

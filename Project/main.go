@@ -21,7 +21,7 @@ func singleElevatorProcess() {
 	obstrCh := make(chan bool)
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
-	MBDCh := make(chan string)
+	MBDCh := make(chan string, 1)
 	masterIPCh := make(chan net.IP)
 	sortedAliveElevIPsCh := make(chan []net.IP)
 	jsonMessageCh := make(chan []byte)

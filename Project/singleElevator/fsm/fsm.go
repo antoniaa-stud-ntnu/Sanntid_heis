@@ -10,7 +10,7 @@ import (
 	"Project/singleElevator/timer"
 	"fmt"
 	"net"
-	"time"
+	//"time"
 )
 
 //"Project/network/udpBroadcast/udpNetwork/localip"
@@ -40,30 +40,20 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
 	fmt.Println("Recieved master IP: ", masterIP)
-	time.Sleep(2 * time.Second)
+	//time.Sleep(2 * time.Second)
 	// Connecting to master
 	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
 
 	localip, _ := localip.LocalIP()
-	var masterConn net.Conn
 	msgElevState.IpAddr = localip
-	var err error
-	/*
-		if masterIP.String() == localip {
-			//fmt.Println(masterIP.String(), localip)
-			masterConn,_ = tcp.TCPMakeMasterConnection("localhost", MasterPort)
-			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
-		} else {
-			masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
-		}*/
-	masterConn, _ = tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
+
+	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
 	go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
 
-	fmt.Println("Masterconn is: ", masterConn)
+	//fmt.Println("Masterconn is: ", masterConn)
 	// Single elevators Finite State Machine
 	for {
 		select {
