@@ -10,25 +10,21 @@ import (
 )
 
 func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan<- string, SortedAliveElevIPsCh chan<- []net.IP) {
-	// Discarding first peer list as this is withoute the local elev
-	p := <-peerUpdateToRoleDistributorCh
-	fmt.Println(p)
 
-	
 	localIPstr, err := localip.LocalIP()
-		if err != nil {
-			fmt.Printf("Could not get local ip: %v\n", err)
-		}
-		localIP := net.ParseIP(localIPstr) //lokal IP i samme format som sortedIPs
+	if err != nil {
+		fmt.Printf("Could not get local ip: %v\n", err)
+	}
+	localIP := net.ParseIP(localIPstr) //lokal IP i samme format som sortedIPs
 	fmt.Println("RoleDistributor started")
 
 	localElevInPeers := false
 	fmt.Println(localIP, localElevInPeers)
-
+	//time.Sleep(1 * time.Second)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
-		fmt.Println(p)
-		
+		fmt.Println("Peer Update to role: ", p)
+
 		//fmt.Printf("Peer update in role distributor:\n")
 
 		// Extracting IP adresses from peers and finding out if local IP is within
@@ -36,12 +32,11 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		for _, ip := range p.Peers {
 			peerIP := net.ParseIP(ip)
 			sortedIPs = append(sortedIPs, peerIP)
-			
 			if peerIP.Equal(localIP) {
 				localElevInPeers = true
 			}
-		} 
-		
+		}
+
 		// Exiting iteration if peers doesn't include the local elevator
 		if !localElevInPeers {
 			break
@@ -50,7 +45,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		// Sorting IP addresses to determin master and backup IP
 		sort.Slice(sortedIPs, func(i, j int) bool {
 			return bytes.Compare(sortedIPs[i], sortedIPs[j]) < 0
-		}) 
+		})
 		masterIP := sortedIPs[0]
 		//fmt.Println("Master Ip := <-peerUpdateToRoleDistributorChP: ", masterIP.String())
 		//fmt.Println("2")
@@ -58,7 +53,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 		if len(sortedIPs) > 1 {
 			backupIP = sortedIPs[1]
 		}
-		
+
 		//fmt.Println("Before sending")
 		for i, ip := range sortedIPs {
 			fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
@@ -112,10 +107,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			}
 		}
 		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-	
+
 	}
 }
-
 
 // Hver gang det skjer en endring av antall heiser kalles denne
 

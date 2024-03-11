@@ -73,14 +73,27 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate) {
 	for {
 		select {
 		case p := <-peerUpdateCh:
-			peerUpdateToPrimaryHandlerCh <- p
-			fmt.Printf("Peer update:\n")
-			fmt.Printf("  Peers:    %q\n", p.Peers)
-			fmt.Printf("  New:      %q\n", p.New)
-			fmt.Printf("  Lost:     %q\n", p.Lost)
+			if localIPInPeers(p) {
+				peerUpdateToPrimaryHandlerCh <- p
+				fmt.Printf("Peer update:\n")
+				fmt.Printf("  Peers:    %q\n", p.Peers)
+				fmt.Printf("  New:      %q\n", p.New)
+				fmt.Printf("  Lost:     %q\n", p.Lost)
+			}
+			
 
 		//case a := <-helloRx:
 			//fmt.Printf("Received: %#v\n", a)
 		}
 	}
+}
+
+func localIPInPeers(p peers.PeerUpdate) bool {
+	localIP, _ := localip.LocalIP()
+	for _, peerIP := range p.Peers {
+		if localIP == peerIP {
+			return true
+		}
+	} 
+	return false
 }

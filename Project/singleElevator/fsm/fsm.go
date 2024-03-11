@@ -39,6 +39,7 @@ var msgElevState = messages.ElevStateMsg{
 func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte) {
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
+	fmt.Println("Recieved master IP: ", masterIP)
 	time.Sleep(2 * time.Second)
 	// Connecting to master
 	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
@@ -225,7 +226,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 }
 
 func OnFloorArrival(newFloor int, masterConn net.Conn) {
-	//fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
+	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
 
 	elev.Floor = newFloor
 	elevio.SetFloorIndicator(elev.Floor)
@@ -235,41 +236,7 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
 			elevio.SetMotorDirection(elevio.Stop)
 			elevio.SetDoorOpenLamp(true)
-			/*
-				for btnIndex, btnValue := range elev.Requests[elev.Floor] {
-					buttonType := elevio.ButtonType(btnIndex)
-					if btnValue && ((buttonType == elevio.HallDown && elev.Dirn == elevio.Down) || (buttonType == elevio.HallUp && elev.Dirn == elevio.Up)) {
-						removeHallReq := messages.HallReqMsg{false, newFloor, buttonType}
-						sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-						tcp.TCPSendMessage(masterConn, sendingBytes)
-					} else if btnValue && buttonType == elevio.Cab{
-						elevio.SetButtonLamp(elev.Floor, buttonType, false)
-					}
-
-				}*/
-			/*
-				// Updating the button light contract with the master and the elevator
-				for requestsOnfloor := range elev.Requests[elev.Floor] {
-					if requestsOnfloor[elevio.HallDown] || requestsOnfloor[elevio.HallUp]{
-						removeHallReq := messages.HallReqMsg{false, newFloor, button}
-						sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-						tcp.TCPSendMessage(masterConn, sendingBytes)
-					}
-					if requestsOnfloor[elevio.Cab]{
-
-					}
-				}
-
-
-				hallButton := requests.ShouldClearRequest(elev)
-				if hallButton == elevio.HallDown || hallButton == elevio.HallUp{
-					removeHallReq := messages.HallReqMsg{false, newFloor, hallButton}
-					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-					tcp.TCPSendMessage(masterConn, sendingBytes)
-				} else if hallButton == elevio.Cab{
-					elevio.SetButtonLamp(elev.Floor, hallButton, false)
-				}
-			*/
+		
 			var removingHallButtons [2]bool
 			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
 			for btnIndex, btnValue := range removingHallButtons {
