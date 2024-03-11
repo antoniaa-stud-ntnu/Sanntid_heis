@@ -104,10 +104,10 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 			}
 			return
 		}
-		//fmt.Printf("Received: %s\n", buffer[:data])
 		msg := make([]byte, data)
 		copy(msg, buffer[:data])
 		jsonMessageCh <- msg
+		
 	}
 
 }
