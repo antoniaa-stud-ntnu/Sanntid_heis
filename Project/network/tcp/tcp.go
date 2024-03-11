@@ -9,7 +9,7 @@ import (
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
 func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+ masterPort)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
 		os.Exit(1)
@@ -23,11 +23,11 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 	defer listener.Close()
 
 	fmt.Printf("Server is listening on port %s\n", masterPort)
-	
+
 	for {
 		// Accept incoming connections
 		conn, err := listener.Accept()
-		
+
 		if err != nil {
 			fmt.Printf("Could not accept connection: %s\n", err)
 			continue
@@ -88,6 +88,7 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 	defer conn.Close()
 	//fmt.Println("In TCP recieve message")
 	// Create a buffer to read data into
+
 	buffer := make([]byte, 65536)
 
 	for {
@@ -103,14 +104,18 @@ func TCPRecieveMasterMsg(conn net.Conn, jsonMessageCh chan<- []byte) {
 			}
 			return
 		}
-		//fmt.Printf("Received: %s\n", buffer[:data])
-		jsonMessageCh <- buffer[:data]
+		fmt.Printf("Received: %s\n", buffer[:data])
+		msg := make([]byte, data)
+		copy(msg, buffer[:data])
+		jsonMessageCh <- msg
 	}
+
 }
 
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	// Send data to the other side of the conncetion
 	_, err := conn.Write(sendingData)
+	fmt.Println("Sending message: ", string(sendingData))
 	if err != nil {
 		fmt.Println("Error sending data to server:", err)
 		return

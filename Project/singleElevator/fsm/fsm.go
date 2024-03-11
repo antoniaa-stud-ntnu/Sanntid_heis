@@ -62,7 +62,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 		fmt.Println("Elevator could not connect to master:", err)
 	}
 
-	//fmt.Println("Masterconn is: ", masterConn)
+	fmt.Println("Masterconn is: ", masterConn)
 	// Single elevators Finite State Machine
 	for {
 		select {

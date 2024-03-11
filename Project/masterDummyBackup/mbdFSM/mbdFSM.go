@@ -44,6 +44,7 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 			iPToConnMap := make(map[string]net.Conn)
 			go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap)
 			time.Sleep(3 * time.Second)
+			fmt.Println(sortedAliveElevs[0])
 			masterIPCh <- sortedAliveElevs[0]
 			
 			for {
@@ -90,7 +91,7 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 						for ipAddr, hallRequest := range output {
 							jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonHallReq)
-							//fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
+							fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
 							tcp.TCPSendMessage(iPToConnMap[ipAddr], jsonLightMsg)
 							fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
 							// starte timer
@@ -99,12 +100,12 @@ func MBD_FSM(MBDCh chan string, sortedAliveElevIPsCh chan []net.IP, jsonMsgCh ch
 				case changeInAliveElevs := <-sortedAliveElevIPsCh:
 					fmt.Println("Inni master i mbdFSM, i changeInAliveElevs")
 					sortedAliveElevs = changeInAliveElevs
+					fmt.Println(sortedAliveElevs)
 
 				case roleChange := <-MBDCh:
 					MBD = roleChange
 					break
 				}
-				//break
 			}
 
 		case "Backup":

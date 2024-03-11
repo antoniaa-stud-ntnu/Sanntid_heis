@@ -50,7 +50,7 @@ func ToBytes(structType string, msg interface{}) []byte {
 	}
 
 	finalJSONBytes, _ := json.Marshal(dataToSend)
-
+	fmt.Println(string(finalJSONBytes), "Structtype: ", structType)
 	// Add delimiter to the end of the message
 	finalJSONBytes = append(finalJSONBytes, '&')
 
@@ -109,6 +109,7 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toMbdFSM
 					if err != nil {
 						
 						fmt.Println("Error decoding json:", err)
+						fmt.Println("jsonObject: ", jsonObject)
 						break
 					}
 

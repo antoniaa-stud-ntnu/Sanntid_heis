@@ -257,13 +257,15 @@ func main() {
 				}
 			}
 		}
-		
-	}
-}
-
-func newFunction() {
-	for _, conn := range iPToConnMap {
-
-		TCPSendMessage(conn, []byte("Hello"))
+	case "2":
+		stop := false
+		for {
+			fmt.Println("In for loop")
+			if stop == false {
+				break
+			}
+			fmt.Println("Things happening after break")
+		}
+		fmt.Println("Outside of for loop, program stops")
 	}
 }
