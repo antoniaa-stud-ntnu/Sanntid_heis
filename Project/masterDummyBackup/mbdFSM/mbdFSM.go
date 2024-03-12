@@ -141,7 +141,7 @@ func masterHandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIP
 		allHallReqAndStates.States[updatingIPAddr] = updatingElevState
 
 		// Sending update to backup if backup exists (will not exist if elevator is witout internet)
-		if len(*sortedAliveElevs) > 1 {
+		if len(*iPToConnMap) > 1 {
 			backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
 
 			mutexIPConn.Lock()
@@ -158,7 +158,7 @@ func masterHandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIP
 		allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
 
 		// Sending update to backup if backup exists (will not exist if elevator is witout internet)
-		if len(*sortedAliveElevs) > 1 {
+		if len(*iPToConnMap) > 1 {
 
 			backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
 
