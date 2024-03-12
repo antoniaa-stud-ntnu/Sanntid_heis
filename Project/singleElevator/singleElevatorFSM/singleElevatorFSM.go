@@ -36,7 +36,7 @@ var msgElevState = messages.ElevStateMsg{
 // hraElevState.Direction = elevator.DirnToString(elev.Dirn)
 // hraElevState.CabRequests = elevator.GetCabRequests(elev)
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte) {
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte, quitCh chan bool) {
 	// Waiting for master to be set and connecting to it
 	masterIP := <-masterIPCh
 	fmt.Println("Recieved master IP: ", masterIP)
@@ -47,14 +47,15 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 	localip, _ := localip.LocalIP()
 	msgElevState.IpAddr = localip
 
+
 	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-	go tcp.TCPRecieveMessage(masterConn, jsonMessageCh)
+
+	go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
 	fmt.Println("Elevators masterconn is: ", masterConn)
 
-	
 	// Single elevators Finite State Machine
 	for {
 		select {
@@ -118,8 +119,8 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			case messages.MsgHallLigths:
 				// Setting hall lights as master says
 				elevio.SetButtonLamp(data.(messages.HallReqMsg).Floor, data.(messages.HallReqMsg).Button, data.(messages.HallReqMsg).TAddFRemove)
-			
-				// Restoring the cab requests 
+
+				// Restoring the cab requests
 			case messages.MsgRestoreCabReq:
 				for floor := 0; floor < len(data.([]bool)); floor++ {
 					elev.Requests[floor][elevio.Cab] = data.([]bool)[floor]
@@ -134,7 +135,9 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				fmt.Println("Elevator could not connect to master:", err)
 			}
 			fmt.Println("New masterConn is: ", masterConn)
-			go tcp.TCPRecieveMessage(masterConn, jsonMessageCh)
+			fmt.Println("Closing the old goroutine")
+			quitCh <- true // Stopping the old goroutine
+			go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
 			//iPToConnMap := make(map[net.Addr]net.Conn)
 			//masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
 			//iPToConnMap[masterip] = masterConn
@@ -149,14 +152,7 @@ func InitLights() {
 	SetAllLights(elev) // endres ???
 }
 
-func CheckForTimeout() bool {
-	if timer.TimedOut() {
-		timer.Stop()
-		OnDoorTimeout()
-		return true
-	}
-	return false
-}
+
 
 func CheckForDoorTimeOut() {
 	for {
@@ -231,6 +227,8 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 	elev.Floor = newFloor
 	elevio.SetFloorIndicator(elev.Floor)
 
+	// Reset motor timer
+
 	switch elev.State {
 	case elevator.Moving:
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
@@ -250,7 +248,7 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 
 			}
 
-			timer.Start(elev.Config.DoorOpenDuration)
+			timer.Start(elev.Config.DoorOpenDuration) // This is door timer
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
@@ -302,4 +300,17 @@ func SetAllCabLights(e elevator.Elevator) {
 	for floor := 0; floor < elevio.N_FLOORS; floor++ {
 		elevio.SetButtonLamp(floor, elevio.Cab, e.Requests[floor][elevio.Cab])
 	}
+}
+
+// Set motor timer and send true to  when the motor starts (motor direction is set to something else than stop)
+// Re
+// RESET MOTORTIMER HVER GANG DEN KOMMER TIL EN ETASJE
+func CheckForMotorTimeOut() {
+	for {
+		if timer.TimedOut() {
+			timer.Stop()
+			
+		}
+	}
+
 }

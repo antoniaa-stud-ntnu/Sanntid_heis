@@ -21,7 +21,8 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 	fmt.Println("In master.HandlingMsg, and iPToConnMap is: ", iPToConnMap)
 	switch typeMsg {
 	case messages.MsgElevState:
-		mutexAllHallAndStates.Lock()
+		mutexAllHallAndStates.Lock() 
+		//
 		//fmt.Println(dataMsg)
 		//fmt.Println("Master rceived a MsgElevState on mdbFSMCh")
 		//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)

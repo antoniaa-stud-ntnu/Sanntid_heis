@@ -17,7 +17,7 @@ type HelloMsg struct {
 	Iter    int
 }
 
-func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate) {
+func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, peerTxEnable chan bool) {
 	// Our id can be anything. Here we pass it on the command line, using
 	//  `go run main.go -id=our_id`
 	var id string
@@ -42,7 +42,7 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate) {
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	// We can disable/enable the transmitter after it has been started.
 	// This could be used to signal that we are somehow "unavailable".
-	peerTxEnable := make(chan bool)
+	
 	//go peers.Transmitter(15647, id, peerTxEnable)
 	//go peers.Receiver(15647, peerUpdateCh)
 	go peers.Transmitter(15645, id, peerTxEnable)

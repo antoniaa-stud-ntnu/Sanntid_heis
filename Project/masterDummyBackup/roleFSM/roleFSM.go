@@ -27,23 +27,26 @@ var allHallReqAndStates = messages.HRAInput{
 	States:       make(map[string]messages.HRAElevState),
 }
 
+var quitCh chan bool
+
 func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistributor.RoleAndSortedAliveElevs, toRoleFSMCh chan []byte, masterIPCh chan net.IP, existingIPsAndConnCh chan tcp.ExistingIPsAndConn) {
 	roleAndSortedAliveElevs := <-RoleAndSortedAliveElevsCh
 	role := roleAndSortedAliveElevs.Role
 	sortedAliveElevs := roleAndSortedAliveElevs.SortedAliveElevs
 
 	fmt.Println("Received role and sorted alive: ", sortedAliveElevs)
+	fmt.Println("My role is: ", role)
 	var mutexSortedElevs = &sync.Mutex{}
 
 	if role == "Master" {
 		//var mutexIPConn = &sync.Mutex{}
 		iPToConnMap = make(map[string]net.Conn)
 		// Setting up masters listening server and keeping iPConnMap up to date
-		go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh)
+		go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh, quitCh)
 		go tcp.TCPLookForClosedConns(&iPToConnMap, mutexIPConn)
 	}
 
-	time.Sleep(3 * time.Second)
+	// time.Sleep(3 * time.Second)
 	masterIP := sortedAliveElevs[int(roleDistributor.Master)]
 	masterIPCh <- masterIP
 
@@ -61,12 +64,16 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 
 		case changedRoleAndSortedAliveElevs := <-RoleAndSortedAliveElevsCh:
 			changedRole := changedRoleAndSortedAliveElevs.Role
-
 			mutexSortedElevs.Lock()
 			sortedAliveElevs = changedRoleAndSortedAliveElevs.SortedAliveElevs
 			mutexSortedElevs.Unlock()
-
+			
 			if changedRole != "" && changedRole != role {
+				// Quitting masters reciever
+				if role == "Master" {
+					quitCh <- true
+				}
+
 				role = changedRole
 				fmt.Println("Elevator recieved role change to ", role)
 				switch role {
@@ -75,7 +82,7 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 					iPToConnMap := make(map[string]net.Conn)
 
 					// Setting up masters listening server and keeping iPConnMap up to date
-					go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh)
+					go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh, quitCh)
 					go tcp.TCPLookForClosedConns(&iPToConnMap, mutexIPConn)
 
 				default:

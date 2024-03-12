@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 type ExistingIPsAndConn struct {
@@ -15,7 +16,7 @@ type ExistingIPsAndConn struct {
 }
 
 // Master opening a listening server and saving+handling incomming connections from all the elevators
-func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex, allHallReqAndStates messages.HRAInput, existingIPsAndConnCh chan ExistingIPsAndConn) {
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex, allHallReqAndStates messages.HRAInput, existingIPsAndConnCh chan ExistingIPsAndConn, quitCh chan bool) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
@@ -56,7 +57,7 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 		fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
 
 		// Handle client connection in a goroutine
-		go TCPRecieveMessage(conn, jsonMessageCh)
+		go TCPRecieveMessage(conn, jsonMessageCh, quitCh)
 	}
 }
 
@@ -83,15 +84,22 @@ func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
 		fmt.Printf("Could not resolve address: %s\n", err)
 	}
 
-	conn, err := net.Dial("tcp", tcpAddr.String())
-	if err != nil {
-		fmt.Println("Could not connect to server: ", err)
+	var conn net.Conn
+	
+	// Looping until connection is established
+	for {
+		conn, err = net.Dial("tcp", tcpAddr.String())
+		if err != nil {
+			fmt.Println("Could not connect to server: ", err)
+			time.Sleep(50*time.Millisecond)
+		}else {
+			break
+		}
 	}
-
 	return conn, err
 }
 
-func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte) {
+func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, quitCh <-chan bool) {
 	defer conn.Close()
 	//fmt.Println("In TCP recieve message")
 	// Create a buffer to read data into
@@ -99,25 +107,34 @@ func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte) {
 	buffer := make([]byte, 65536)
 
 	for {
-		// Read data from the client
-		data, err := conn.Read(buffer)
-		if err != nil {
-			// Remove the connection from iPToConnMap of active connections
-			conn.Close()
-			if err == io.EOF {
-				fmt.Println("Client closed the connection.")
-			} else {
-				fmt.Println("Error:", err)
-			}
+		select {
+		case <- quitCh: // Stopping goroutine
 			return
-		}
+		default:
+			// Read data from the client
+			data, err := conn.Read(buffer)
+			if err != nil {
+				// Remove the connection from iPToConnMap of active connections
+				conn.Close()
+				if err == io.EOF {
+					fmt.Println("Client closed the connection.")
+				} else {
+					fmt.Println("Error:", err)
+				}
+				return
+			}
 		msg := make([]byte, data)
 		copy(msg, buffer[:data])
 		jsonMessageCh <- msg
-
+		}
 	}
-
 }
+
+// Panic pga sende til nil pointer -> kan fikses ved å søke på nettet på GO panic ignore......
+// While loop (eller noe sånt) på TCPMakeMasterConn
+// TCPRecieveMessage skal avslutte en eller annen gang, channelen skal bli født
+// Timer kan vi ha på motorstopp, visst den bruker
+// Ta bort ALLE mutexer :(
 
 func TCPSendMessage(conn net.Conn, sendingData []byte) {
 	// Send data to the other side of the connection
