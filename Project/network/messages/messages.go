@@ -1,18 +1,18 @@
 package messages
 
 import (
-	"Project/singleElevator/elevio"
+	"Project/localElevator/elevio"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-const MsgHRAInput = "HRAInput"               // To backup --> to MBDfsm
-const MsgElevState = "ElevState"             // To master --> to MBDfsm
-const MsgHallReq = "HallReq"                 // To master --> to MBDfsm
+const MsgHRAInput = "HRAInput"             // To backup --> to MBDfsm
+const MsgElevState = "ElevState"            // To master --> to MBDfsm
+const MsgHallReq = "HallReq"              // To master --> to MBDfsm
 const MsgHallLigths = "HallLights"           // To elevators --> fsm
-const MsgAssignedHallReq = "AssignedHallReq" // To elevators --> fsm
-const MsgRestoreCabReq = "CabReq"            // To elevators --> fsm
+const MsgAssignedHallReq = "AssignedHallReq"      // To elevators --> fsm
+const MsgRestoreCabReq = "CabReq"               // To elevators --> fsm
 
 type HRAElevState struct {
 	Behaviour   string `json:"behaviour"`
@@ -31,17 +31,16 @@ type ElevStateMsg struct {
 	ElevState HRAElevState `json:"elevState"`
 }
 
-type HallReqMsg struct {
-	TAddFRemove bool              `json:"tAdd_fRemove"`
-	Floor       int               `json:"floor"`
-	Button      elevio.ButtonType `json:"button"`
-}
-
 type dataWithType struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
 }
 
+type HallReqMsg struct {
+	TAddFRemove bool              `json:"tAdd_fRemove"`
+	Floor       int               `json:"floor"`
+	Button      elevio.ButtonType `json:"button"`
+}
 
 
 func ToBytes(structType string, msg interface{}) []byte {
@@ -73,9 +72,7 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 		return DataWithType.Type, HRAInputData
 	case MsgElevState:
 		var MsgElevStateData ElevStateMsg
-		//fmt.Println("Before unmarshalling elevstate: ", string(DataWithType.Data))
 		err = json.Unmarshal(DataWithType.Data, &MsgElevStateData)
-		//fmt.Println("After unmarshalling elevstate: ", MsgElevStateData)
 		return DataWithType.Type, MsgElevStateData
 	case MsgHallReq:
 		var MsgHallReqData HallReqMsg
@@ -105,13 +102,11 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toRoleCh
 		select {
 		case jsonMsgReceived := <-jsonMessageCh:
 			fmt.Println(string(jsonMsgReceived))
-			// Split the jsonMsgReceived string on the '&' character to get separate strings for each JSON object
 			jsonObjects := strings.Split(string(jsonMsgReceived), "&")
-			// Loop over the jsonObjects slice
+
 			for _, jsonObject := range jsonObjects {
 				if jsonObject != "" {
-					//fmt.Println("jsonObject is: ", jsonObject)
-					// Unmarshal the jsonObject string
+
 					err := json.Unmarshal([]byte(jsonObject), &dataWithType)
 					if err != nil {
 						
@@ -121,10 +116,10 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toRoleCh
 					}
 
 					switch dataWithType.Type {
-						case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
+						case MsgHRAInput, MsgElevState, MsgHallReq:
 							toRoleCh <- []byte(jsonObject)
 							//fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithType.Type)
-						case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq: // sende til fsm
+						case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq:
 							toFSMCh <- []byte(jsonObject)
 							//fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithType.Type)
 					}

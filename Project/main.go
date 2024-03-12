@@ -1,14 +1,14 @@
 package main
 
 import (
-	"Project/masterDummyBackup/roleDistributor"
-	"Project/masterDummyBackup/roleFSM"
+	"Project/roleHandler/roleDistributor"
+	"Project/roleHandler/roleFSM"
 	"Project/network/messages"
 	"Project/network/tcp"
 	"Project/network/udpBroadcast"
 	"Project/network/udpBroadcast/udpNetwork/peers"
-	"Project/singleElevator/elevio"
-	"Project/singleElevator/singleElevatorFSM"
+	"Project/localElevator/elevio"
+	"Project/localElevator/singleElevatorFSM"
 	"fmt"
 	"net"
 )
@@ -38,14 +38,15 @@ func ElevatorProcess() {
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
 	go singleElevatorFSM.CheckForDoorTimeOut()
-	// go singleElevatorFSM.CheckForMotorTimeOut(peerTxEnable) 
+	go singleElevatorFSM.CheckForMotorStopTimeOut(peerTxEnable)
 
 	if elevio.GetFloor() == -1 {
 		singleElevatorFSM.OnInitBetweenFloors()
 	}
-	singleElevatorFSM.InitLights()
-	go singleElevatorFSM.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toSingleElevFSMCh, quitCh)
 
+	singleElevatorFSM.InitLights()
+
+	go singleElevatorFSM.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toSingleElevFSMCh, quitCh, peerTxEnable)
 
 	// Start communication between elevators
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh, peerTxEnable)

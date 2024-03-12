@@ -7,34 +7,31 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	//"time"
 )
-type RoleAndSortedAliveElevs struct {
-	Role 				string
-	SortedAliveElevs 	[]net.IP
-}
 
+type RoleAndSortedAliveElevs struct {
+	Role             string
+	SortedAliveElevs []net.IP
+}
 
 type Role int
 
 const (
-    Master Role = iota // 0
-    Backup             // 1
-    Dummy              // 2
+	Master Role = iota // 0
+	Backup             // 1
+	Dummy              // 2
 )
 
 func (r Role) String() string {
-    switch r {
-    case Master:
-        return "Master"
-    case Backup:
-        return "Backup"
-    default:
-        return "Dummy"
-    }
+	switch r {
+	case Master:
+		return "Master"
+	case Backup:
+		return "Backup"
+	default:
+		return "Dummy"
+	}
 }
-
-
 
 func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs) {
 
@@ -48,7 +45,6 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 	localElevInPeers := false
 	fmt.Println(localIP, localElevInPeers)
 
-	
 	//time.Sleep(1 * time.Second)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
@@ -74,8 +70,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 			return bytes.Compare(sortedIPs[i], sortedIPs[j]) < 0
 		})
 
-
-		 checkRoles := func(sortedIPs []net.IP) string {
+		checkRoles := func(sortedIPs []net.IP) string {
 			for i, ip := range sortedIPs {
 				var expectedRole Role
 				switch i {
@@ -86,7 +81,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 				default:
 					expectedRole = Dummy
 				}
-				
+
 				if ip.Equal(localIP) {
 					return expectedRole.String()
 				}
@@ -94,7 +89,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 			return ""
 		}
 		newRole := ""
-		
+
 		if len(p.Lost) > 0 {
 			newRole = checkRoles(sortedIPs)
 		}
@@ -102,9 +97,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 		if p.New != "" {
 			newRole = checkRoles(sortedIPs)
 		}
-		
-		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs} 
+
+		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs}
 		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM")
-		
+
 	}
 }

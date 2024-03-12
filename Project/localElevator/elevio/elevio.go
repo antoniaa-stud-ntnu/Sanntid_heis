@@ -48,9 +48,7 @@ func Init(addr string, numFloors int) {
 	_numFloors = numFloors
 	_mtx = sync.Mutex{}
 
-	// Attempt to establish a network connection to the specified address
-	var err error // outputDevice.MotorDirection(Down)
-	// elevio.SetMotorDirection(elevio.Down)
+	var err error
 	_conn, err = net.Dial("tcp", addr)
 	if err != nil {
 		panic(err.Error())

@@ -1,7 +1,7 @@
 package elevator
 
 import (
-	"Project/singleElevator/elevio"
+	"Project/localElevator/elevio"
 	"fmt"
 )
 
@@ -24,6 +24,7 @@ const (
 type Config struct {
 	ClearRequestVariant ClearRequestVariant
 	DoorOpenDuration    float64
+	MotorStopDuration	float64
 }
 
 type Elevator struct {
@@ -120,8 +121,9 @@ func InitElev() Elevator {
 		State:    			Idle,
 		ObstructionActive: 	false,
 		Config: 			Config{
-						ClearRequestVariant: CV_InDirn,
-						DoorOpenDuration:    3.0,
+						ClearRequestVariant: 	CV_InDirn,
+						DoorOpenDuration:		3.0,
+						MotorStopDuration:		3.0,
 						},
 	}
 }

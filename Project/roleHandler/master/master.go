@@ -1,30 +1,25 @@
 package master
 
 import (
+	"Project/localElevator/elevio"
 	"Project/network/messages"
 	"Project/network/tcp"
-	"Project/singleElevator/elevio"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os/exec"
 	"runtime"
-	"sync"
 )
 
-const MasterPort = "20025"
+const MasterPort = "20019"
 
-
-
-func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *sync.Mutex, sortedAliveElevs *[]net.IP, mutexSortedElevs *sync.Mutex, mutexAllHallAndStates *sync.Mutex, allHallReqAndStates *messages.HRAInput) {
+func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAliveElevs *[]net.IP, allHallReqAndStates *messages.HRAInput) {
 	typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 	fmt.Println("In master.HandlingMsg, and iPToConnMap is: ", iPToConnMap)
 	switch typeMsg {
 	case messages.MsgElevState:
-		mutexAllHallAndStates.Lock() 
-		//
 		//fmt.Println(dataMsg)
-		//fmt.Println("Master rceived a MsgElevState on mdbFSMCh")
+		fmt.Println("Master rceived a MsgElevState on mdbFSMCh")
 		//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)
 		//fmt.Println("State: ", dataMsg.(messages.ElevStateMsg).ElevState)
 		updatingIPAddr := dataMsg.(messages.ElevStateMsg).IpAddr
@@ -35,18 +30,13 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 		// Sending update to backup if backup exists (will not exist if elevator is without internet)
 		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
 			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
-
-			mutexIPConn.Lock()
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
-			mutexIPConn.Unlock()
-
+			fmt.Println("BackupConn: ", backupConn)
 			tcp.TCPSendMessage(backupConn, backupMsg)
 		}
-		mutexAllHallAndStates.Unlock()
 
 	case messages.MsgHallReq:
-		// fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
-		mutexAllHallAndStates.Lock()
+		fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
 		(*allHallReqAndStates).HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
 
 		// Sending update to backup if backup exists (will not exist if elevator is witout internet)
@@ -54,10 +44,8 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 
 			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
 
-			mutexIPConn.Lock()
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
 			tcp.TCPSendMessage(backupConn, backupMsg)
-			mutexIPConn.Unlock()
 		}
 
 		// Running HallRequest assigner
@@ -71,7 +59,6 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 		for _, ip := range *sortedAliveElevs {
 			inputToHRA.States[ip.String()] = (*allHallReqAndStates).States[ip.String()]
 		}
-		mutexAllHallAndStates.Unlock()
 		output := runHallRequestAssigner(inputToHRA)
 
 		// Hall lights setting for all elevators

@@ -1,31 +1,21 @@
 package roleFSM
 
 import (
-	"Project/masterDummyBackup/master"
-	"Project/masterDummyBackup/roleDistributor"
+	"Project/localElevator/elevio"
 	"Project/network/messages"
 	"Project/network/tcp"
-	"Project/singleElevator/elevio"
+	"Project/roleHandler/master"
+	"Project/roleHandler/roleDistributor"
 	"fmt"
 	"net"
-	"sync"
-	"time"
 )
-
-// const MasterPort = "27300"
-const MasterPort = "20025"
-const BackupPort = "27301"
-const DummyPort = "27302"
-
-var mutexIPConn = &sync.Mutex{}
-var iPToConnMap map[string]net.Conn
-
-var mutexAllHallAndStates = &sync.Mutex{}
 
 var allHallReqAndStates = messages.HRAInput{
 	HallRequests: make([][2]bool, elevio.N_FLOORS),
 	States:       make(map[string]messages.HRAElevState),
 }
+
+var iPToConnMap map[string]net.Conn
 
 var quitCh chan bool
 
@@ -36,14 +26,12 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 
 	fmt.Println("Received role and sorted alive: ", sortedAliveElevs)
 	fmt.Println("My role is: ", role)
-	var mutexSortedElevs = &sync.Mutex{}
 
 	if role == "Master" {
-		//var mutexIPConn = &sync.Mutex{}
 		iPToConnMap = make(map[string]net.Conn)
 		// Setting up masters listening server and keeping iPConnMap up to date
-		go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh, quitCh)
-		go tcp.TCPLookForClosedConns(&iPToConnMap, mutexIPConn)
+		go tcp.TCPListenForConnectionsAndHandle(master.MasterPort, jsonMsgCh, &iPToConnMap, allHallReqAndStates, existingIPsAndConnCh, quitCh)
+		go tcp.TCPLookForClosedConns(&iPToConnMap)
 	}
 
 	// time.Sleep(3 * time.Second)
@@ -55,7 +43,7 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 		case jsonMsg := <-toRoleFSMCh:
 			switch role {
 			case "Master":
-				go master.HandlingMsg(jsonMsg, &iPToConnMap, mutexIPConn, &sortedAliveElevs, mutexSortedElevs, mutexAllHallAndStates, &allHallReqAndStates)
+				go master.HandlingMsg(jsonMsg, &iPToConnMap, &sortedAliveElevs, &allHallReqAndStates)
 			case "Backup":
 				go backupHandlingMsg(jsonMsg)
 			default:
@@ -64,10 +52,8 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 
 		case changedRoleAndSortedAliveElevs := <-RoleAndSortedAliveElevsCh:
 			changedRole := changedRoleAndSortedAliveElevs.Role
-			mutexSortedElevs.Lock()
 			sortedAliveElevs = changedRoleAndSortedAliveElevs.SortedAliveElevs
-			mutexSortedElevs.Unlock()
-			
+
 			if changedRole != "" && changedRole != role {
 				// Quitting masters reciever
 				if role == "Master" {
@@ -78,20 +64,17 @@ func RoleFSM(jsonMsgCh chan []byte, RoleAndSortedAliveElevsCh chan roleDistribut
 				fmt.Println("Elevator recieved role change to ", role)
 				switch role {
 				case "Master":
-					//var mutexIPConn = &sync.Mutex{}
 					iPToConnMap := make(map[string]net.Conn)
 
 					// Setting up masters listening server and keeping iPConnMap up to date
-					go tcp.TCPListenForConnectionsAndHandle(MasterPort, jsonMsgCh, &iPToConnMap, mutexIPConn, allHallReqAndStates, existingIPsAndConnCh, quitCh)
-					go tcp.TCPLookForClosedConns(&iPToConnMap, mutexIPConn)
+					go tcp.TCPListenForConnectionsAndHandle(master.MasterPort, jsonMsgCh, &iPToConnMap, allHallReqAndStates, existingIPsAndConnCh, quitCh)
+					go tcp.TCPLookForClosedConns(&iPToConnMap)
 
 				default:
 					// Default case for "Backup" and "Dummy"
 					// No initialization needed
 				}
 
-				// Waiting for master to set up listening server before elevators try to connect to it
-				time.Sleep(3 * time.Second)
 				masterIP := sortedAliveElevs[int(roleDistributor.Master)]
 				masterIPCh <- masterIP
 				//fmt.Println(masterIP)
@@ -111,12 +94,10 @@ func backupHandlingMsg(jsonMsg []byte) {
 	typeMsg, dataMsg := messages.FromBytes(jsonMsg)
 	switch typeMsg {
 	case messages.MsgHRAInput:
-		mutexAllHallAndStates.Lock()
 		allHallReqAndStates = messages.HRAInput{
 			HallRequests: dataMsg.(messages.HRAInput).HallRequests,
 			States:       dataMsg.(messages.HRAInput).States,
 		}
-		mutexAllHallAndStates.Unlock()
 	}
-	//fmt.Println("Backup revieced all info: ", allHallReqAndStates)
+	fmt.Println("Backup revieced all info: ", allHallReqAndStates)
 }

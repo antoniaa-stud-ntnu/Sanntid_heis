@@ -7,6 +7,8 @@ import (
 var endTime float64
 var active bool
 
+
+
 func getWallTime() float64 {
 	currentTime := time.Now()
 	seconds := float64(currentTime.Unix())
@@ -26,3 +28,4 @@ func Stop() {
 func TimedOut() bool {
 	return (active && getWallTime() > endTime)
 }
+
