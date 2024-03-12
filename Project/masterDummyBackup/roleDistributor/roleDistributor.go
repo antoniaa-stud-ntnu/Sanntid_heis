@@ -9,8 +9,34 @@ import (
 	"sort"
 	//"time"
 )
+type RoleAndSortedAliveElevs struct {
+	Role 				string
+	SortedAliveElevs 	[]net.IP
+}
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh chan<- string, SortedAliveElevIPsCh chan<- []net.IP) {
+
+type Role int
+
+const (
+    Master Role = iota // 0
+    Backup             // 1
+    Dummy              // 2
+)
+
+func (r Role) String() string {
+    switch r {
+    case Master:
+        return "Master"
+    case Backup:
+        return "Backup"
+    default:
+        return "Dummy"
+    }
+}
+
+
+
+func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs) {
 
 	localIPstr, err := localip.LocalIP()
 	if err != nil {
@@ -22,15 +48,11 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 	localElevInPeers := false
 	fmt.Println(localIP, localElevInPeers)
 
-	var oldMasterIP net.IP
-	var oldBackupIP net.IP
 	
 	//time.Sleep(1 * time.Second)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
 		fmt.Println("Peer Update to role, peers: ", p.Peers)
-
-		//fmt.Printf("Peer update in role distributor:\n")
 
 		// Extracting IP adresses from peers and finding out if local IP is within
 		sortedIPs := make([]net.IP, 0, len(p.Peers))
@@ -47,85 +69,48 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, MBDCh 
 			break
 		}
 
-		// Sorting IP addresses to determin master and backup IP
+		// Sorting IP addresses to find out which role the local elevator should have
 		sort.Slice(sortedIPs, func(i, j int) bool {
 			return bytes.Compare(sortedIPs[i], sortedIPs[j]) < 0
 		})
-		masterIP := sortedIPs[0]
-		//fmt.Println("Master Ip := <-peerUpdateToRoleDistributorChP: ", masterIP.String())
-		//fmt.Println("2")
-		backupIP := net.IP{} //Backup is empty IP if there is only one peer
-		if len(sortedIPs) > 1 {
-			backupIP = sortedIPs[1]
-		}
 
-		//fmt.Println("Before sending")
-		//for i, ip := range sortedIPs {
-		//	fmt.Printf("Index %d: IP Address: %s\n", i, ip.String())
-		//}
 
-		fmt.Println("Before sending updated SortedAliveElevs to MBD_FSM")
-		SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-		fmt.Println("Sent updated SortedAliveElevs to MBD_FSM")
-
-		//SortedAliveElevIPsCh <- sortedIPs //Sendes masters IP adress on channel, to be used in MBD_FSM
-
-		changeNodeRole := func(nodeID net.IP, role string) {
-			//fmt.Printf("nodeID-%s == localIP-%s \n", nodeID.String(), localIP.String())
-			if nodeID.Equal(localIP) {
-				fmt.Printf("I am now changing role to %v\n", role)
-				MBDCh <- role
-				fmt.Println("Sent role change to MBDCh")
+		 checkRoles := func(sortedIPs []net.IP) string {
+			for i, ip := range sortedIPs {
+				var expectedRole Role
+				switch i {
+				case 0:
+					expectedRole = Master
+				case 1:
+					expectedRole = Backup
+				default:
+					expectedRole = Dummy
+				}
+				
+				if ip.Equal(localIP) {
+					return expectedRole.String()
+				}
+				
 			}
+			return ""
 		}
-		setDummies := func(sortedIPs []net.IP) {
-			for dummy := 2; dummy < len(sortedIPs); dummy++ {
-				changeNodeRole(sortedIPs[dummy], "Dummy")
-			}
-		}
-		//fmt.Println("Now checking if lost peer")
+			
+		
+		
+		newRole := ""
+		
 		if len(p.Lost) > 0 {
-			//lostID, _ := strconv.Atoi(p.Lost[0]) //p.lost kan teknisk sett være flere, men i praksis vil to lost samtidig ende opp som en om gangen rett etter hverandre
-			lostIP := net.ParseIP(p.Lost[0])
-			//fmt.Println("I am inside len(p.lost) > 0, lostIP :", lostIP.String())
-			//fmt.Printf("Inside len(p.lost) > 0, lostIP-%d, oldMasterIP-%d, oldBackupIP-%d ", lostIP.String(), oldMasterIP.String(), oldBackupIP.String())
-			if lostIP.Equal(oldMasterIP) { //Master lost, backup take over
-				//fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn master\n")
-				changeNodeRole(masterIP, "Master")
-				changeNodeRole(backupIP, "Backup")
-				setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
-			} else if lostIP.Equal(oldBackupIP) { //Master intact, but backup lost
-				//fmt.Printf("I am inside len(p.lost) > 0, lost mindre enn backup\n")
-				//fmt.Println(len(sortedIPs))
-				if len(sortedIPs) > 1 {
-					changeNodeRole(backupIP, "Backup")
-					
-				}
-				if len(sortedIPs) > 2 {
-					setDummies(sortedIPs) //Not tested, Need to ensure that the other elevators are dummys
-				}
-			}
+			newRole = checkRoles(sortedIPs)
 		}
 
 		if p.New != "" {
-
-			newID := net.ParseIP(p.New)
-			if newID.Equal(masterIP) { //New master
-				changeNodeRole(masterIP, "Master")
-				changeNodeRole(backupIP, "Backup")
-			} else if newID.Equal(backupIP) { //New backup
-				changeNodeRole(backupIP, "Backup")
-			}
-			if !newID.Equal(masterIP) && !newID.Equal(backupIP) { //New dummy
-				//changeNodeRole(newID, 2)
-				setDummies(sortedIPs)
-			}
+			newRole = checkRoles(sortedIPs)
 		}
 		//time.Sleep(3*time.Second)
 		
-
-		oldMasterIP = masterIP
-		oldBackupIP = backupIP
+		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs} 
+		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM")
+		
 	}
 }
 

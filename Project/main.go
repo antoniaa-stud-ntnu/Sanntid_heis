@@ -1,13 +1,13 @@
 package main
 
 import (
-	"Project/masterDummyBackup/mbdFSM"
 	"Project/masterDummyBackup/roleDistributor"
+	"Project/masterDummyBackup/roleFSM"
 	"Project/network/messages"
 	"Project/network/udpBroadcast"
 	"Project/network/udpBroadcast/udpNetwork/peers"
 	"Project/singleElevator/elevio"
-	"Project/singleElevator/fsm"
+	"Project/singleElevator/singleElevatorFSM"
 	"fmt"
 	"net"
 )
@@ -27,6 +27,7 @@ func singleElevatorProcess() {
 	jsonMessageCh := make(chan []byte)
 	toFSMCh := make(chan []byte)
 	toMbdFSMCh := make(chan []byte)
+	existingIPsCh := make(chan string)
 
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
@@ -34,15 +35,15 @@ func singleElevatorProcess() {
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh)
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, MBDCh, sortedAliveElevIPsCh)
 
-	go fsm.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig
+	go singleElevatorFSM.CheckForDoorTimeOut() //Denne vil kjøre kontinuerlig
 
 	if elevio.GetFloor() == -1 {
-		fsm.OnInitBetweenFloors()
+		singleElevatorFSM.OnInitBetweenFloors()
 	}
 
-	fsm.InitLights()
-	go mbdFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, jsonMessageCh, toMbdFSMCh, masterIPCh)
-	go fsm.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toFSMCh)
+	singleElevatorFSM.InitLights()
+	go roleFSM.MBD_FSM(MBDCh, sortedAliveElevIPsCh, jsonMessageCh, toMbdFSMCh, masterIPCh, existingIPsCh)
+	go singleElevatorFSM.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toFSMCh)
 	go messages.DistributeMessages(jsonMessageCh, toFSMCh, toMbdFSMCh)
 }
 

@@ -11,7 +11,8 @@ const MsgHRAInput = "HRAInput"               // To backup --> to MBDfsm
 const MsgElevState = "ElevState"             // To master --> to MBDfsm
 const MsgHallReq = "HallReq"                 // To master --> to MBDfsm
 const MsgHallLigths = "HallLights"           // To elevators --> fsm
-const MsgAssignedHallReq = "AssignedHallReq" // To elevators --> to fsm
+const MsgAssignedHallReq = "AssignedHallReq" // To elevators --> fsm
+const MsgRestoreCabReq = "CabReq"            // To elevators --> fsm
 
 type HRAElevState struct {
 	Behaviour   string `json:"behaviour"`
@@ -40,6 +41,8 @@ type dataWithType struct {
 	Type string          `json:"type"`
 	Data json.RawMessage `json:"data"`
 }
+
+
 
 func ToBytes(structType string, msg interface{}) []byte {
 	msgJsonBytes, _ := json.Marshal(msg)
@@ -83,9 +86,13 @@ func FromBytes(jsonBytes []byte) (string, interface{}) {
 		err = json.Unmarshal(DataWithType.Data, &MsgHallLightsData)
 		return DataWithType.Type, MsgHallLightsData
 	case MsgAssignedHallReq:
-		var MsgAssignedHallReq [][2]bool
-		err = json.Unmarshal(DataWithType.Data, &MsgAssignedHallReq)
-		return DataWithType.Type, MsgAssignedHallReq
+		var MsgAssignedHallReqData [][2]bool
+		err = json.Unmarshal(DataWithType.Data, &MsgAssignedHallReqData)
+		return DataWithType.Type, MsgAssignedHallReqData
+	case MsgRestoreCabReq:
+		var MsgRestoreCabReqData []bool
+		err = json.Unmarshal(DataWithType.Data, &MsgRestoreCabReqData)
+		return DataWithType.Type, MsgRestoreCabReqData
 	default:
 		return DataWithType.Type, nil
 	}
@@ -117,7 +124,7 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toMbdFSM
 						case MsgHRAInput, MsgElevState, MsgHallReq: // sende til mbdFSM
 							toMbdFSMCh <- []byte(jsonObject)
 							//fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithType.Type)
-						case MsgHallLigths, MsgAssignedHallReq: // sende til fsm
+						case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq: // sende til fsm
 							toFSMCh <- []byte(jsonObject)
 							//fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithType.Type)
 					}

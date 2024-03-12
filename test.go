@@ -191,6 +191,25 @@ var input2 = HRAInput{
 	},	
 }
 
+type Role int
+
+const (
+    Master Role = iota // 0
+    Backup             // 1
+    Dummy              // 2
+)
+
+func (r Role) String() string {
+    switch r {
+    case Master:
+        return "Master"
+    case Backup:
+        return "Backup"
+    default:
+        return "Dummy"
+    }
+}
+
 func main() {
 
 	args := os.Args
@@ -267,5 +286,7 @@ func main() {
 			fmt.Println("Things happening after break")
 		}
 		fmt.Println("Outside of for loop, program stops")
+	case "3":
+		fmt.Println("MasterIndex: ", int(Master))
 	}
 }

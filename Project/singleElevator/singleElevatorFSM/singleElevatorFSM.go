@@ -1,4 +1,4 @@
-package fsm
+package singleElevatorFSM
 
 import (
 	"Project/network/messages"
@@ -48,7 +48,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 	msgElevState.IpAddr = localip
 
 	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
-	go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+	go tcp.TCPRecieveMessage(masterConn, jsonMessageCh)
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
@@ -117,8 +117,13 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			case messages.MsgHallLigths:
 				// Setting hall lights as master says
 				elevio.SetButtonLamp(data.(messages.HallReqMsg).Floor, data.(messages.HallReqMsg).Button, data.(messages.HallReqMsg).TAddFRemove)
+			
+				// Restoring the cab requests
+			case messages.MsgRestoreCabReq:
+				for floor := 0; floor < len(data); floor++ {
+					elev.Requests[floor][elevio.Cab] = data[floor]
+				}
 			}
-
 		case masterIP := <-masterIPCh:
 			fmt.Println("Master has changed to IP: ", masterIP.String())
 			// Master has changed, need to make new connection
@@ -128,7 +133,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				fmt.Println("Elevator could not connect to master:", err)
 			}
 			fmt.Println("New masterConn is: ", masterConn)
-			go tcp.TCPRecieveMasterMsg(masterConn, jsonMessageCh)
+			go tcp.TCPRecieveMessage(masterConn, jsonMessageCh)
 			//iPToConnMap := make(map[net.Addr]net.Conn)
 			//masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
 			//iPToConnMap[masterip] = masterConn
