@@ -3,18 +3,22 @@ package master
 import (
 	"Project/network/messages"
 	"Project/network/tcp"
-	"Project/sigleElevator/elevio"
+	"Project/singleElevator/elevio"
 	"encoding/json"
+	"fmt"
+	"net"
 	"os/exec"
 	"runtime"
-	"fmt"
 	"sync"
-	"net"
 )
 
+const MasterPort = "20025"
 
-func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *sync.Mutex, sortedAliveElevs *[]net.IP, mutexSortedElevs *sync.Mutex, mutexAllHallAndStates *sync.Mutex, allHallReqAndStates messages.HRAInput) {
+
+
+func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *sync.Mutex, sortedAliveElevs *[]net.IP, mutexSortedElevs *sync.Mutex, mutexAllHallAndStates *sync.Mutex, allHallReqAndStates *messages.HRAInput) {
 	typeMsg, dataMsg := messages.FromBytes(jsonMsg)
+	fmt.Println("In master.HandlingMsg, and iPToConnMap is: ", iPToConnMap)
 	switch typeMsg {
 	case messages.MsgElevState:
 		mutexAllHallAndStates.Lock()
@@ -25,14 +29,14 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 		updatingIPAddr := dataMsg.(messages.ElevStateMsg).IpAddr
 		updatingElevState := dataMsg.(messages.ElevStateMsg).ElevState
 
-		allHallReqAndStates.States[updatingIPAddr] = updatingElevState
+		(*allHallReqAndStates).States[updatingIPAddr] = updatingElevState
 
 		// Sending update to backup if backup exists (will not exist if elevator is without internet)
-		if len(*iPToConnMap) > 1 {
-			backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
+		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
+			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
 
 			mutexIPConn.Lock()
-			backupConn := (*iPToConnMap)[string((*sortedAliveElevs)[1].String())]
+			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
 			mutexIPConn.Unlock()
 
 			tcp.TCPSendMessage(backupConn, backupMsg)
@@ -42,12 +46,12 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 	case messages.MsgHallReq:
 		// fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
 		mutexAllHallAndStates.Lock()
-		allHallReqAndStates.HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
+		(*allHallReqAndStates).HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
 
 		// Sending update to backup if backup exists (will not exist if elevator is witout internet)
-		if len(*iPToConnMap) > 1 {
+		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
 
-			backupMsg := messages.ToBytes(messages.MsgHRAInput, allHallReqAndStates)
+			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
 
 			mutexIPConn.Lock()
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
@@ -61,13 +65,13 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 			States:       make(map[string]messages.HRAElevState),
 		}
 
-		inputToHRA.HallRequests = allHallReqAndStates.HallRequests
+		inputToHRA.HallRequests = (*allHallReqAndStates).HallRequests
 
 		for _, ip := range *sortedAliveElevs {
-			inputToHRA.States[ip.String()] = allHallReqAndStates.States[ip.String()]
+			inputToHRA.States[ip.String()] = (*allHallReqAndStates).States[ip.String()]
 		}
 		mutexAllHallAndStates.Unlock()
-		output := RunHallRequestAssigner(inputToHRA)
+		output := runHallRequestAssigner(inputToHRA)
 
 		// Hall lights setting for all elevators
 		jsonLightMsg := messages.ToBytes(messages.MsgHallLigths, dataMsg)
@@ -75,6 +79,7 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 		// Sending hall requests and light settnings to the elevators
 		for ipAddr, hallRequest := range output {
 			jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
+			fmt.Println("iPToConnMap: ", *iPToConnMap)
 			tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonHallReq)
 			// fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
 			tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonLightMsg)
@@ -84,8 +89,7 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, mutexIPConn *
 	}
 }
 
-
-func RunHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
+func runHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
 	hraExecutable := ""
 	switch runtime.GOOS {
 	case "linux":

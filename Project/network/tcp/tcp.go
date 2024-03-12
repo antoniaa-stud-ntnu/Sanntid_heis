@@ -9,8 +9,13 @@ import (
 	"sync"
 )
 
+type ExistingIPsAndConn struct {
+	ExistingIP string
+	Conn       net.Conn
+}
+
 // Master opening a listening server and saving+handling incomming connections from all the elevators
-func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex, allHallReqAndStates messages.HRAInput, existingIPsCh chan string) {
+func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, mutex *sync.Mutex, allHallReqAndStates messages.HRAInput, existingIPsAndConnCh chan ExistingIPsAndConn) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
 	if err != nil {
 		fmt.Printf("Could not resolve address: %s\n", err)
@@ -37,21 +42,35 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 
 		// Add connection to map with active connections
 		connectionsIP := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
-		//fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
+		fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
 
 		// Hvis conn ikke allerede eksisterer i allHallReqAndStates fra roleFSM
 		if _, exists := allHallReqAndStates.States[connectionsIP]; exists {
-			existingIPsCh <- connectionsIP
-			// hent ut innholdet på allHallReqAndStates
+			existingIPsAndConnCh <- ExistingIPsAndConn{connectionsIP, conn}
+			// I master, gå gjennom allHallReqAndStates med denne IP og sender tcp med cabrequests til ipadressen
 		}
 
 		mutex.Lock()
 		(*iPToConnMap)[connectionsIP] = conn
 		mutex.Unlock()
-		//fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
+		fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
 
 		// Handle client connection in a goroutine
 		go TCPRecieveMessage(conn, jsonMessageCh)
+	}
+}
+
+func TCPLookForClosedConns(iPToConnMap *map[string]net.Conn, mutexIPConn *sync.Mutex) {
+	for ip, conn := range *iPToConnMap {
+
+		_, err := conn.Read(make([]byte, 1024))
+		if err != nil {
+
+			mutexIPConn.Lock()
+			fmt.Println("Deleting a conn: ", (*iPToConnMap))
+			delete((*iPToConnMap), ip)
+			mutexIPConn.Unlock()
+		}
 	}
 }
 

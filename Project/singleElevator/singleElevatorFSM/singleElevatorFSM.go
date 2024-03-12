@@ -52,8 +52,9 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 	if err != nil {
 		fmt.Println("Elevator could not connect to master:", err)
 	}
+	fmt.Println("Elevators masterconn is: ", masterConn)
 
-	//fmt.Println("Masterconn is: ", masterConn)
+	
 	// Single elevators Finite State Machine
 	for {
 		select {
@@ -118,10 +119,10 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				// Setting hall lights as master says
 				elevio.SetButtonLamp(data.(messages.HallReqMsg).Floor, data.(messages.HallReqMsg).Button, data.(messages.HallReqMsg).TAddFRemove)
 			
-				// Restoring the cab requests
+				// Restoring the cab requests 
 			case messages.MsgRestoreCabReq:
-				for floor := 0; floor < len(data); floor++ {
-					elev.Requests[floor][elevio.Cab] = data[floor]
+				for floor := 0; floor < len(data.([]bool)); floor++ {
+					elev.Requests[floor][elevio.Cab] = data.([]bool)[floor]
 				}
 			}
 		case masterIP := <-masterIPCh:
@@ -167,6 +168,7 @@ func CheckForDoorTimeOut() {
 
 }
 
+// Slettes ????
 func SetAllLights(es elevator.Elevator) {
 	for floor := 0; floor < elevio.N_FLOORS; floor++ {
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {

@@ -90,13 +90,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 				if ip.Equal(localIP) {
 					return expectedRole.String()
 				}
-				
 			}
 			return ""
 		}
-			
-		
-		
 		newRole := ""
 		
 		if len(p.Lost) > 0 {
@@ -106,25 +102,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 		if p.New != "" {
 			newRole = checkRoles(sortedIPs)
 		}
-		//time.Sleep(3*time.Second)
 		
 		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs} 
 		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM")
 		
 	}
 }
-
-// Hver gang det skjer en endring av antall heiser kalles denne
-
-// If one connection lost:
-// If master is lost
-// Backup take over
-// else (backup lost)
-// make a new backup
-// else (dummy elevator)
-// don't care
-// If new connection:
-// If the new elevator is master (and there are two masters now):
-// deside which elevator is master
-// else
-// master is starting a TCP conntection to the dummy elevator
