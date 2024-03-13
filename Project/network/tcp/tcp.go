@@ -14,6 +14,12 @@ type ExistingIPsAndConn struct {
 	Conn       net.Conn
 }
 
+
+var masterConn chan net.Conn
+
+
+	
+
 // Master opening a listening server and saving+handling incomming connections from all the elevators
 func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []byte, iPToConnMap *map[string]net.Conn, allHallReqAndStates messages.HRAInput, existingIPsAndConnCh chan ExistingIPsAndConn, quitCh chan bool) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
@@ -54,7 +60,7 @@ func TCPListenForConnectionsAndHandle(masterPort string, jsonMessageCh chan []by
 		fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
 
 		// Handle client connection in a goroutine
-		go TCPRecieveMessage(conn, jsonMessageCh, quitCh)
+		go RecieveMessage(conn, jsonMessageCh, quitCh)
 	}
 }
 
@@ -71,6 +77,38 @@ func TCPLookForClosedConns(iPToConnMap *map[string]net.Conn) {
 }
 
 // Recieving messages and sending them on a channel for to be handeled else where
+
+
+
+var conn net.Conn
+func EstablishConnection(ipCh chan net.IP, port string, connCh chan net.Conn, quitOldReciever chan bool) {
+	for {
+		IP := <-ipCh
+		tcpAddr, err := net.ResolveTCPAddr("tcp4", IP.String()+":"+port)
+		if err != nil {
+			fmt.Printf("Could not resolve address: %s\n", err)
+		}
+
+		if conn != nil {
+			conn.Close()
+			quitOldReciever <- true
+		}
+
+
+		for {
+			conn, err = net.Dial("tcp", tcpAddr.String())
+			if err != nil {
+				fmt.Println("Could not connect to server: ", err)
+				time.Sleep(50*time.Millisecond)
+			}else {
+				break
+			}
+		}
+		connCh <- conn
+	}
+	
+
+}
 
 // Function for connecting to the listening server
 func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
@@ -94,7 +132,7 @@ func TCPMakeMasterConnection(host string, port string) (net.Conn, error) {
 	return conn, err
 }
 
-func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, quitCh <-chan bool) {
+func RecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, quitCh <-chan bool) {
 	defer conn.Close()
 	//fmt.Println("In TCP recieve message")
 
@@ -123,15 +161,26 @@ func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, quitCh <-chan
 	}
 }
 
-func TCPSendMessage(conn net.Conn, sendingData []byte) { // (to master, masterconn ch)
-	// Send data to the other side of the connection
-	_, err := conn.Write(sendingData)
-	if err != nil {
-		if err == io.EOF {
-			fmt.Println("Connection closed by the server.")
-		} else {
-			fmt.Println("Error sending data to server:", err)
+type SendNetworkMsg struct {
+	recieverConn net.Conn
+	message 	[]byte
+}
+
+func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterconn ch)
+	for {
+		sendNetworkMsg := <-sendNetworkMsgCh
+		conn := sendNetworkMsg.recieverConn
+		message := sendNetworkMsg.message
+		// Send data to the other side of the connection
+		_, err := conn.Write(message)
+		if err != nil {
+			if err == io.EOF {
+				fmt.Println("Connection closed by the server.")
+			} else {
+				fmt.Println("Error sending data to server:", err)
+			}
+			return
 		}
-		return
 	}
+	
 }

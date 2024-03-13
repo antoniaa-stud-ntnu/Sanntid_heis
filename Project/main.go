@@ -25,7 +25,10 @@ func ElevatorProcess() {
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	roleAndSortedAliveElevsCh := make(chan roleDistributor.RoleAndSortedAliveElevs, 2)
 	masterIPCh := make(chan net.IP)
-	quitCh := make(chan bool)
+	masterConnCh := make(chan net.Conn)
+	quitOldRecieverCh := make(chan bool)
+
+	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg) 
 
 	msgToMasterCh := make(chan []byte)
 	jsonMessageCh := make(chan []byte, 5)
@@ -46,56 +49,14 @@ func ElevatorProcess() {
 
 	singleElevatorFSM.InitLights()
 
-	var masterConn chan net.Conn
-	go func() {
-		masterIP := <-masterIPCh
-		masterConn.Close()
-		fmt.Println("Master has changed to IP: ", masterIP.String())
-		// Master has changed, need to make new connection
-		masterConn.Close()
-		masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), master.MasterPort)
-		if err != nil {
-			fmt.Println("Elevator could not connect to master:", err)
-		}
-		fmt.Println("New masterConn is: ", masterConn)
-		fmt.Println("Closing the old goroutine")
-		quitCh <- true // Stopping the old goroutine
-		tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
-	}
+	
 	
 
-	// Make masterConn
-	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), master.MasterPort)
+	go tcp.EstablishConnection(masterIPCh, master.MasterPort, masterConnCh, quitOldRecieverCh)
+	go tcp.RecieveMessage(masterConnCh, jsonMessageCh, quitOldRecieverCh)
+	go tcp.SendMessage(sendNetworkMsgCh)
 
-	go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
-	if err != nil {
-		fmt.Println("Elevator could not connect to master:", err)
-	}
-	fmt.Println("Elevators masterconn is: ", masterConn)
-
-	go func() {
-		
-	}
-
-	//make master conn (masterConnCh, masterIP, )
-	/*case masterIP := <-masterIPCh:
-			fmt.Println("Master has changed to IP: ", masterIP.String())
-			// Master has changed, need to make new connection
-			masterConn.Close()
-			masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), master.MasterPort)
-			if err != nil {
-				fmt.Println("Elevator could not connect to master:", err)
-			}
-			fmt.Println("New masterConn is: ", masterConn)
-			fmt.Println("Closing the old goroutine")
-			quitCh <- true // Stopping the old goroutine
-			go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
-			//iPToConnMap := make(map[net.Addr]net.Conn)
-			//masterip, _ := net.ResolveIPAddr("ip", masterIP.String()) // String til net.Addr
-			//iPToConnMap[masterip] = masterConn
-			//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, &iPToConnMap)
-			fmt.Println("Master has changed")*/
-
+	
 	//tcp send msg(to master, masterconn ch)
 	//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
 	go messages.DistributeMessages(jsonMessageCh, toSingleElevFSMCh, toRoleFSMCh)
