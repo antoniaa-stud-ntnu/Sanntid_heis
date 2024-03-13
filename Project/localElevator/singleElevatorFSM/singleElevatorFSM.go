@@ -56,6 +56,9 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 
 	motorAndDoorTimerInit()
 
+	go CheckForDoopOpenTimeOut(peerTxEnable)
+	go CheckForMotorStopTimeOut(peerTxEnable)
+
 	for {
 		select {
 		case button := <-buttonsCh:
@@ -264,22 +267,25 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 
 }
 
-func OnDoorTimeout() {
-	//fmt.Printf("\n\n%s()\n", "Door timeout")
+func OnDoorTimeout(peerTxEnable chan bool) {
+	fmt.Println("Door timeout")
 
 	switch elev.State {
 	case elevator.DoorOpen:
 		if elev.ObstructionActive {
-			timer.Start(elev.Config.DoorOpenDuration)
+			//timer.Start(elev.Config.DoorOpenDuration)
+			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
 			break
 		}
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
+		startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 
 		switch elev.State {
 		case elevator.DoorOpen:
-			timer.Start(elev.Config.DoorOpenDuration)
+			//timer.Start(elev.Config.DoorOpenDuration)
+			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
 			elev, _ = requests.ClearAtCurrentFloor(elev)
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
@@ -313,8 +319,8 @@ func SetAllCabLights(e elevator.Elevator) {
 
 func motorAndDoorTimerInit() {
 	// Initialize motor timer
-	motorStopTimer = time.NewTimer(0)
-	doorOpenTimer = time.NewTimer(0)
+	motorStopTimer = time.NewTimer(24 * time.Hour)
+	doorOpenTimer = time.NewTimer(24 * time.Hour)
 	//Sette peer til true??
 }
 
@@ -339,11 +345,11 @@ func CheckForMotorStopTimeOut(peerTxEnable chan bool) {
 
 }
 
-func CheckForDoopOpenTimeOut() {
+func CheckForDoopOpenTimeOut(peerTxEnable chan bool) {
 	for {
 		select {
 		case <-doorOpenTimer.C:
-			OnDoorTimeout()		
+			OnDoorTimeout(peerTxEnable)		
 		}
 	}
 }

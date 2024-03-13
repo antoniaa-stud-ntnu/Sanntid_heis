@@ -37,8 +37,6 @@ func ElevatorProcess() {
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
-	go singleElevatorFSM.CheckForDoorTimeOut()
-	go singleElevatorFSM.CheckForMotorStopTimeOut(peerTxEnable)
 
 	if elevio.GetFloor() == -1 {
 		singleElevatorFSM.OnInitBetweenFloors()
