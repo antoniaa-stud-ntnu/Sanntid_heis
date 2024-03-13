@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net"
 	"time"
-	//"time"
 )
 
 //"Project/network/udpBroadcast/udpNetwork/localip"
@@ -34,10 +33,10 @@ var msgElevState = messages.ElevStateMsg{
 	ElevState: hraElevState,
 }
 
-func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, jsonMessageCh chan []byte, toFSMCh chan []byte, quitCh chan bool, peerTxEnable chan bool) {
+func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterIPCh chan net.IP, msgToMasterCh chan []byte, toFSMCh chan []byte, quitCh chan bool, peerTxEnable chan bool) {
 	// Waiting for master to be set and connecting to it
-	masterIP := <-masterIPCh
-	fmt.Println("Recieved master IP: ", masterIP)
+	// masterIP := <-masterIPCh
+	// fmt.Println("Recieved master IP: ", masterIP)
 	//time.Sleep(2 * time.Second)
 	// Connecting to master
 	//masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), MasterPort)
@@ -45,20 +44,8 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 	localip, _ := localip.LocalIP()
 	msgElevState.IpAddr = localip
 
-
-	masterConn, err := tcp.TCPMakeMasterConnection(masterIP.String(), master.MasterPort)
-
-	go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
-	if err != nil {
-		fmt.Println("Elevator could not connect to master:", err)
-	}
-	fmt.Println("Elevators masterconn is: ", masterConn)
-
 	motorAndDoorTimerInit()
-
-	go CheckForDoopOpenTimeOut(peerTxEnable)
-	go CheckForMotorStopTimeOut(peerTxEnable)
-
+	
 	for {
 		select {
 		case button := <-buttonsCh:
@@ -69,7 +56,10 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				msgElevState.ElevState.CabRequests[button.Floor] = true
 				sendingBytes := messages.ToBytes(messages.MsgElevState, msgElevState)
 				//fmt.Println(string(sendingBytes))
-				tcp.TCPSendMessage(masterConn, sendingBytes)
+
+				// Send on Channel to main
+				msgToMasterCh <- sendingBytes 
+				// tcp.TCPSendMessage(masterConn, sendingBytes)
 
 				// Handling the cab request
 				OnRequestButtonPress(button.Floor, button.Button, peerTxEnable) // dersom det er cabReq så skal den ta bestillingen selv
@@ -78,17 +68,19 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				// Sending the hall request to master
 				hallReq := messages.HallReqMsg{true, button.Floor, button.Button}
 				sendingBytes := messages.ToBytes(messages.MsgHallReq, hallReq)
-				tcp.TCPSendMessage(masterConn, sendingBytes)
+				//tcp.TCPSendMessage(masterConn, sendingBytes)
+				msgToMasterCh <- sendingBytes 
 				// fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
 			}
 		case floor := <-floorsCh:
 			// Updating master with the new state of the elevator
 			msgElevState.ElevState.Floor = floor
 			sendingBytes := messages.ToBytes(messages.MsgElevState, msgElevState)
-			tcp.TCPSendMessage(masterConn, sendingBytes)
+			// tcp.TCPSendMessage(masterConn, sendingBytes)
+			msgToMasterCh <- sendingBytes 
 
 			// Handeling floor change and telling master if a hall request was removed
-			OnFloorArrival(floor, masterConn, peerTxEnable)
+			OnFloorArrival(floor, msgToMasterCh, peerTxEnable)
 
 			//elevator.ElevatorPrint(elev)
 
@@ -144,6 +136,13 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			//iPToConnMap[masterip] = masterConn
 			//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, &iPToConnMap)
 			fmt.Println("Master has changed")
+		case <- doorOpenTimer.C:
+			fmt.Println("Door timed out")
+			OnDoorTimeout(peerTxEnable)
+		case <- motorStopTimer.C:
+			fmt.Println("Motor timed out")
+			peerTxEnable <- false
+			//reset
 		}
 	}
 }
@@ -154,16 +153,6 @@ func InitLights() {
 }
 
 
-/*
-func CheckForDoorTimeOut() {
-	for {
-		if timer.TimedOut() {
-			timer.Stop()
-			OnDoorTimeout()
-		}
-	}
-
-}*/
 
 // Slettes ????
 func SetAllLights(es elevator.Elevator) {
@@ -210,6 +199,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 		case elevator.DoorOpen:
 			elevio.SetDoorOpenLamp(true)
 			//timer.Start(elev.Config.DoorOpenDuration)
+			
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			elev, _ = requests.ClearAtCurrentFloor(elev)
 
@@ -225,7 +215,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 	// SetAllLights(elev)
 }
 
-func OnFloorArrival(newFloor int, masterConn net.Conn, peerTxEnable chan bool) {
+func OnFloorArrival(newFloor int, msgToMasterCh chan[]byte, peerTxEnable chan bool) {
 	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
 
 	elev.Floor = newFloor
@@ -238,7 +228,11 @@ func OnFloorArrival(newFloor int, masterConn net.Conn, peerTxEnable chan bool) {
 	case elevator.Moving:
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
 			elevio.SetMotorDirection(elevio.Stop)
-			// Skru av motor timer
+			if !motorStopTimer.Stop() {
+				<- motorStopTimer.C
+				peerTxEnable <- true
+			}
+			
 			elevio.SetDoorOpenLamp(true)
 			fmt.Println("The elevators request list at this floor is: ", elev.Requests[newFloor])
 			var removingHallButtons [2]bool
@@ -248,13 +242,18 @@ func OnFloorArrival(newFloor int, masterConn net.Conn, peerTxEnable chan bool) {
 				if btnValue {
 					removeHallReq := messages.HallReqMsg{false, newFloor, buttonType}
 					sendingBytes := messages.ToBytes(messages.MsgHallReq, removeHallReq)
-					tcp.TCPSendMessage(masterConn, sendingBytes)
+					//tcp.TCPSendMessage(masterConn, sendingBytes)
+					msgToMasterCh <- sendingBytes 
 					fmt.Println("Sending to master that hall req is complete: ", string(sendingBytes))
 				}
 
 			}
 
+			if  !doorOpenTimer.Stop() {
+				<- doorOpenTimer.C
+			}
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
+
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
@@ -274,7 +273,9 @@ func OnDoorTimeout(peerTxEnable chan bool) {
 	case elevator.DoorOpen:
 		if elev.ObstructionActive {
 			//timer.Start(elev.Config.DoorOpenDuration)
-			
+			if  !doorOpenTimer.Stop() {
+				<- doorOpenTimer.C
+			}
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
 			break
 		}
@@ -326,10 +327,6 @@ func motorAndDoorTimerInit() {
 }
 
 func startMotorStopTimer(motorStopDuration float64, peerTxEnable chan bool) {
-	if !motorStopTimer.Stop(){
-		<- motorStopTimer.C
-	}
-
 	motorStopTimer.Reset(time.Duration(motorStopDuration) * time.Second)
 	peerTxEnable <- true
 }
@@ -339,22 +336,3 @@ func StartDoorOpenTimer(doorOpenDuration float64) {
 	doorOpenTimer.Reset(time.Duration(doorOpenDuration) * time.Second)
 }*/
 
-func CheckForMotorStopTimeOut(peerTxEnable chan bool) {
-	for {
-		select {
-		case <-motorStopTimer.C:
-			// Motor timer expired, do something
-			peerTxEnable <- false // Set peer transmission enable to false
-		}
-	}
-
-}
-
-func CheckForDoopOpenTimeOut(peerTxEnable chan bool) {
-	for {
-		select {
-		case <-doorOpenTimer.C:
-			OnDoorTimeout(peerTxEnable)		
-		}
-	}
-}

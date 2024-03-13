@@ -123,7 +123,7 @@ func TCPRecieveMessage(conn net.Conn, jsonMessageCh chan<- []byte, quitCh <-chan
 	}
 }
 
-func TCPSendMessage(conn net.Conn, sendingData []byte) {
+func TCPSendMessage(conn net.Conn, sendingData []byte) { // (to master, masterconn ch)
 	// Send data to the other side of the connection
 	_, err := conn.Write(sendingData)
 	if err != nil {
