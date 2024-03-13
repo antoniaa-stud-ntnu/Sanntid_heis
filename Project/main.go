@@ -1,22 +1,24 @@
 package main
 
 import (
-	"Project/roleHandler/roleDistributor"
-	"Project/roleHandler/roleFSM"
+	"Project/localElevator/elevio"
+	"Project/localElevator/localElevatorHandler"
 	"Project/network/messages"
 	"Project/network/tcp"
 	"Project/network/udpBroadcast"
 	"Project/network/udpBroadcast/udpNetwork/peers"
-	"Project/localElevator/elevio"
-	"Project/localElevator/singleElevatorFSM"
-	"Project/roleHandler/master"
-	"fmt"
+	"Project/roleHandler/roleDistributor"
+	"Project/roleHandler/roleFSM"
 	"net"
 )
 
 func ElevatorProcess() {
-	fmt.Println("In single elevator process")
-	elevio.Init("localhost:15657", elevio.N_FLOORS) //port
+
+}
+
+func main() {
+
+	elevio.Init("localhost:15657", elevio.N_FLOORS)
 
 	buttonsCh := make(chan elevio.ButtonEvent)
 	floorsCh := make(chan int)
@@ -24,60 +26,47 @@ func ElevatorProcess() {
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	roleAndSortedAliveElevsCh := make(chan roleDistributor.RoleAndSortedAliveElevs, 2)
+	isMasterCh := make(chan bool)
+	editMastersConnMapCh := make(chan tcp.EditConnMap)
+
 	masterIPCh := make(chan net.IP)
 	masterConnCh := make(chan net.Conn)
-	quitOldRecieverCh := make(chan bool)
+	//quitOldRecieverCh := make(chan bool)
 
-	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg) 
-
-	msgToMasterCh := make(chan []byte)
-	jsonMessageCh := make(chan []byte, 5)
-	toSingleElevFSMCh := make(chan []byte)
-	toRoleFSMCh := make(chan []byte)
-	existingIPsAndConnCh := make(chan tcp.ExistingIPsAndConn)
+	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg, 100)
+	incommingNetworkMsgCh := make(chan []byte, 100)
+	
+	toSingleElevFSMCh := make(chan []byte, 5)
+	toRoleFSMCh := make(chan []byte, 5)
 
 	peerTxEnable := make(chan bool)
 
-	// Start the elevator
 	go elevio.PollRequestButtons(buttonsCh)
 	go elevio.PollFloorSensor(floorsCh)
 	go elevio.PollObstructionSwitch(obstrCh)
 
 	if elevio.GetFloor() == -1 {
-		singleElevatorFSM.OnInitBetweenFloors()
+		localElevatorHandler.OnInitBetweenFloors()
 	}
 
-	singleElevatorFSM.InitLights()
+	localElevatorHandler.InitLights()
 
-	
-	
+	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh, peerTxEnable)
+	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, roleAndSortedAliveElevsCh, masterIPCh)
+	go roleFSM.RoleFSM(roleAndSortedAliveElevsCh, toRoleFSMCh, sendNetworkMsgCh, isMasterCh, editMastersConnMapCh)
 
-	go tcp.EstablishConnection(masterIPCh, master.MasterPort, masterConnCh, quitOldRecieverCh)
-	go tcp.RecieveMessage(masterConnCh, jsonMessageCh, quitOldRecieverCh)
+	go tcp.SetUpMaster(isMasterCh, tcp.MasterPort, editMastersConnMapCh, incommingNetworkMsgCh)
+	go tcp.EstablishConnectionAndListen(masterIPCh, tcp.MasterPort, masterConnCh, incommingNetworkMsgCh)
+	//go tcp.RecieveMessage(masterConnCh, jsonMessageCh, quitOldRecieverCh)
 	go tcp.SendMessage(sendNetworkMsgCh)
 
-	
 	//tcp send msg(to master, masterconn ch)
 	//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
-	go messages.DistributeMessages(jsonMessageCh, toSingleElevFSMCh, toRoleFSMCh)
+	go messages.DistributeMessages(incommingNetworkMsgCh, toSingleElevFSMCh, toRoleFSMCh)
 
 	//ta in to master ch i FSM
-	go singleElevatorFSM.FSM(buttonsCh, floorsCh, obstrCh, masterIPCh, jsonMessageCh, toSingleElevFSMCh, quitCh, peerTxEnable)
-	
-	// Start communication between elevators
-	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh, peerTxEnable)
-	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, roleAndSortedAliveElevsCh)
-	go roleFSM.RoleFSM(jsonMessageCh, roleAndSortedAliveElevsCh, toRoleFSMCh, masterIPCh, existingIPsAndConnCh)
-	
-	
-}
+	go localElevatorHandler.LocalElevatorHandler(buttonsCh, floorsCh, obstrCh, masterConnCh, sendNetworkMsgCh, toSingleElevFSMCh, peerTxEnable)
 
-
-
-func main() {
-	//udp_broadcast.ProcessPairInit()
-
-	ElevatorProcess()
 	for {
 		select {}
 	}

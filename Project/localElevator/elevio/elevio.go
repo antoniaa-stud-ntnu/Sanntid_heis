@@ -11,8 +11,8 @@ const _pollRate = 20 * time.Millisecond
 
 var _initialized bool = false
 var _numFloors int = 4
-var _mtx sync.Mutex // A mutex for synchronization
-var _conn net.Conn  // Holds a network connection
+var _mtx sync.Mutex
+var _conn net.Conn
 
 const (
 	N_FLOORS  = 4
@@ -56,8 +56,8 @@ func Init(addr string, numFloors int) {
 	_initialized = true
 }
 
-func SetButtonLamp(floor int, btn ButtonType, val bool) {
-	write([4]byte{2, byte(btn), byte(floor), toByte(val)}) // Other use this
+func SetButtonLamp(floor int, btn ButtonType, onOff bool) {
+	write([4]byte{2, byte(btn), byte(floor), toByte(onOff)})
 }
 
 func SetMotorDirection(dir MotorDirection) {
@@ -68,23 +68,23 @@ func SetFloorIndicator(floor int) {
 	write([4]byte{3, byte(floor), 0, 0})
 }
 
-func SetDoorOpenLamp(val bool) {
-	write([4]byte{4, toByte(val), 0, 0})
+func SetDoorOpenLamp(onOff bool) {
+	write([4]byte{4, toByte(onOff), 0, 0})
 }
 
-func SetStopLamp(value bool) {
-	write([4]byte{5, toByte(value), 0, 0})
+func SetStopLamp(onOff bool) {
+	write([4]byte{5, toByte(onOff), 0, 0})
 }
 
 func PollFloorSensor(receiver chan<- int) {
 	prev := -1
 	for {
 		time.Sleep(_pollRate)
-		v := GetFloor()
-		if v != prev && v != -1 {
-			receiver <- v
+		floor := GetFloor()
+		if floor != prev && floor != -1 {
+			receiver <- floor
 		}
-		prev = v
+		prev = floor
 	}
 }
 
@@ -92,13 +92,13 @@ func PollRequestButtons(receiver chan<- ButtonEvent) {
 	prev := make([][3]bool, _numFloors)
 	for {
 		time.Sleep(_pollRate)
-		for f := 0; f < _numFloors; f++ {
-			for b := ButtonType(0); b < 3; b++ {
-				v := getButton(b, f)
-				if v != prev[f][b] && v {
-					receiver <- ButtonEvent{f, ButtonType(b)}
+		for floor := 0; floor < _numFloors; floor++ {
+			for btnType := ButtonType(0); btnType < 3; btnType++ {
+				btn := getButton(btnType, floor)
+				if btn != prev[floor][btnType] && btn {
+					receiver <- ButtonEvent{floor, ButtonType(btnType)}
 				}
-				prev[f][b] = v
+				prev[floor][btnType] = btn
 			}
 		}
 	}
@@ -108,11 +108,11 @@ func PollStopButton(receiver chan<- bool) {
 	prev := false
 	for {
 		time.Sleep(_pollRate)
-		v := getStop()
-		if v != prev {
-			receiver <- v
+		onOff := getStop()
+		if onOff != prev {
+			receiver <- onOff
 		}
-		prev = v
+		prev = onOff
 	}
 }
 
@@ -120,27 +120,18 @@ func PollObstructionSwitch(receiver chan<- bool) {
 	prev := false
 	for {
 		time.Sleep(_pollRate)
-		v := getObstruction()
-		if v != prev {
-			receiver <- v
+		onOff := getObstruction()
+		if onOff != prev {
+			receiver <- onOff
 		}
-		prev = v
+		prev = onOff
 	}
 }
 
 func getButton(button ButtonType, floor int) bool {
-	a := read([4]byte{6, byte(button), byte(floor), 0})
-	return toBool(a[1])
+	val := read([4]byte{6, byte(button), byte(floor), 0})
+	return toBool(val[1])
 }
-
-// func GetFloor() int {
-// 	a := read([4]byte{7, 0, 0, 0})
-// 	if a[1] != 0 {
-// 		return int(a[2])
-// 	} else {
-// 		return -1
-// 	}
-// }
 
 func GetFloor() int {
 	_mtx.Lock()
@@ -156,13 +147,13 @@ func GetFloor() int {
 }
 
 func getStop() bool {
-	a := read([4]byte{8, 0, 0, 0})
-	return toBool(a[1])
+	val := read([4]byte{8, 0, 0, 0})
+	return toBool(val[1])
 }
 
 func getObstruction() bool {
-	a := read([4]byte{9, 0, 0, 0})
-	return toBool(a[1])
+	val := read([4]byte{9, 0, 0, 0})
+	return toBool(val[1])
 }
 
 func read(in [4]byte) [4]byte {
@@ -193,18 +184,18 @@ func write(in [4]byte) {
 	}
 }
 
-func toByte(a bool) byte {
-	var b byte = 0
-	if a {
-		b = 1
+func toByte(boolVal bool) byte {
+	var byteVal byte = 0
+	if boolVal {
+		byteVal = 1
 	}
-	return b
+	return byteVal
 }
 
-func toBool(a byte) bool {
-	var b bool = false
-	if a != 0 {
-		b = true
+func toBool(byteVal byte) bool {
+	var boolVal bool = false
+	if byteVal != 0 {
+		boolVal = true
 	}
-	return b
+	return boolVal
 }

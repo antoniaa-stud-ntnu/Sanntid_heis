@@ -288,5 +288,9 @@ func main() {
 		fmt.Println("Outside of for loop, program stops")
 	case "3":
 		fmt.Println("MasterIndex: ", int(Master))
+		//var conn net.Conn
+		//fmt.Println(conn)
+		var removingHallButtons [2]bool = nil
+		fmt.Println(removingHallButtons)
 	}
 }

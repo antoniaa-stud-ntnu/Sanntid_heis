@@ -37,7 +37,7 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
 
 	var buf [1024]byte
-	var p PeerUpdate
+	var peerUpd PeerUpdate
 	lastSeen := make(map[string]time.Time)
 
 	conn := conn.DialBroadcastUDP(port)
@@ -50,38 +50,35 @@ func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
 
 		id := string(buf[:n])
 
-		// Adding new connection
-		p.New = ""
+		peerUpd.New = ""
 		if id != "" {
 			if _, idExists := lastSeen[id]; !idExists {
-				p.New = id
+				peerUpd.New = id
 				updated = true
 			}
 
 			lastSeen[id] = time.Now()
 		}
 
-		// Removing dead connection
-		p.Lost = make([]string, 0)
-		for k, v := range lastSeen {
-			if time.Now().Sub(v) > timeout {
+		peerUpd.Lost = make([]string, 0)
+		for index, value := range lastSeen {
+			if time.Now().Sub(value) > timeout {
 				updated = true
-				p.Lost = append(p.Lost, k)
-				delete(lastSeen, k)
+				peerUpd.Lost = append(peerUpd.Lost, index)
+				delete(lastSeen, index)
 			}
 		}
 
-		// Sending update
 		if updated {
-			p.Peers = make([]string, 0, len(lastSeen))
+			peerUpd.Peers = make([]string, 0, len(lastSeen))
 
-			for k, _ := range lastSeen {
-				p.Peers = append(p.Peers, k)
+			for index, _ := range lastSeen {
+				peerUpd.Peers = append(peerUpd.Peers, index)
 			}
 
-			sort.Strings(p.Peers)
-			sort.Strings(p.Lost)
-			peerUpdateCh <- p
+			sort.Strings(peerUpd.Peers)
+			sort.Strings(peerUpd.Lost)
+			peerUpdateCh <- peerUpd
 		}
 	}
 }

@@ -11,10 +11,10 @@ import (
 	"runtime"
 )
 
-const MasterPort = "20019"
 
-func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAliveElevs *[]net.IP, allHallReqAndStates *messages.HRAInput) {
-	typeMsg, dataMsg := messages.FromBytes(jsonMsg)
+
+func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAliveElevs *[]net.IP, allHallReqAndStates *messages.HRAInput, sendNetworkMsgCh chan tcp.SendNetworkMsg) {
+	typeMsg, dataMsg := messages.UnpackMessage(jsonMsg)
 	fmt.Println("In master.HandlingMsg, and iPToConnMap is: ", iPToConnMap)
 	switch typeMsg {
 	case messages.MsgElevState:
@@ -27,28 +27,27 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAliveEl
 
 		(*allHallReqAndStates).States[updatingIPAddr] = updatingElevState
 
-		// Sending update to backup if backup exists (will not exist if elevator is without internet)
 		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
-			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
+			backupMsg := messages.PackMessage(messages.MsgHRAInput, (*allHallReqAndStates))
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
 			fmt.Println("BackupConn: ", backupConn)
-			tcp.TCPSendMessage(backupConn, backupMsg)
+			
+			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
+			//tcp.TCPSendMessage(backupConn, backupMsg)
 		}
+		fmt.Println("Master finished handling MsgElevState")
 
 	case messages.MsgHallReq:
 		fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
 		(*allHallReqAndStates).HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
 
-		// Sending update to backup if backup exists (will not exist if elevator is witout internet)
 		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
-
-			backupMsg := messages.ToBytes(messages.MsgHRAInput, (*allHallReqAndStates))
-
+			backupMsg := messages.PackMessage(messages.MsgHRAInput, (*allHallReqAndStates))
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
-			tcp.TCPSendMessage(backupConn, backupMsg)
+			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
+			// tcp.TCPSendMessage(backupConn, backupMsg)
 		}
 
-		// Running HallRequest assigner
 		var inputToHRA = messages.HRAInput{
 			HallRequests: make([][2]bool, elevio.N_FLOORS),
 			States:       make(map[string]messages.HRAElevState),
@@ -61,18 +60,17 @@ func HandlingMsg(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAliveEl
 		}
 		output := runHallRequestAssigner(inputToHRA)
 
-		// Hall lights setting for all elevators
-		jsonLightMsg := messages.ToBytes(messages.MsgHallLigths, dataMsg)
+		jsonLightMsg := messages.PackMessage(messages.MsgHallLigths, dataMsg)
 
-		// Sending hall requests and light settnings to the elevators
 		for ipAddr, hallRequest := range output {
-			jsonHallReq := messages.ToBytes(messages.MsgAssignedHallReq, hallRequest)
+			jsonHallReqMsg := messages.PackMessage(messages.MsgAssignedHallReq, hallRequest)
 			fmt.Println("iPToConnMap: ", *iPToConnMap)
-			tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonHallReq)
+			//tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonHallReq)
+			sendNetworkMsgCh <- tcp.SendNetworkMsg{(*iPToConnMap)[ipAddr], jsonHallReqMsg}
 			// fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
-			tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonLightMsg)
+			sendNetworkMsgCh <- tcp.SendNetworkMsg{(*iPToConnMap)[ipAddr], jsonLightMsg}
+			//tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonLightMsg)
 			// fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
-			// starte timer
 		}
 	}
 }
@@ -87,31 +85,29 @@ func runHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
 	default:
 		panic("OS not supported")
 	}
-
 	jsonBytes, err := json.Marshal(input)
 	if err != nil {
 		fmt.Println("json.Marshal error: ", err)
 		return nil
 	}
-
 	ret, err := exec.Command(hraExecutable, "-i", string(jsonBytes)).CombinedOutput()
 	if err != nil {
 		fmt.Println("exec.Command error: ", err)
 		fmt.Println(string(ret))
 		return nil
 	}
-
 	output := new(map[string][][2]bool)
 	err = json.Unmarshal(ret, &output)
 	if err != nil {
 		fmt.Println("json.Unmarshal error: ", err)
 		return nil
 	}
+	return *output
+}
+	
 	/*
 		fmt.Printf("output: \n")
 		for k, v := range *output {
 			fmt.Printf("%6v :  %+v\n", k, v)
 		}
 	*/
-	return *output
-}

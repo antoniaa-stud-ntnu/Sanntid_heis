@@ -22,8 +22,8 @@ const (
 	Dummy              // 2
 )
 
-func (r Role) String() string {
-	switch r {
+func (role Role) String() string {
+	switch role {
 	case Master:
 		return "Master"
 	case Backup:
@@ -33,13 +33,12 @@ func (r Role) String() string {
 	}
 }
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs) {
-
+func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs, masterIPCh chan net.IP) {
 	localIPstr, err := localip.LocalIP()
 	if err != nil {
 		fmt.Printf("Could not get local ip: %v\n", err)
 	}
-	localIP := net.ParseIP(localIPstr) //lokal IP i samme format som sortedIPs
+	localIP := net.ParseIP(localIPstr)
 	fmt.Println("RoleDistributor started")
 
 	localElevInPeers := false
@@ -50,7 +49,6 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 		p := <-peerUpdateToRoleDistributorCh
 		fmt.Println("Peer Update to role, peers: ", p.Peers)
 
-		// Extracting IP adresses from peers and finding out if local IP is within
 		sortedIPs := make([]net.IP, 0, len(p.Peers))
 		for _, ip := range p.Peers {
 			peerIP := net.ParseIP(ip)
@@ -59,21 +57,17 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 				localElevInPeers = true
 			}
 		}
-
-		// Exiting iteration if peers doesn't include the local elevator
 		if !localElevInPeers {
 			break
 		}
-
-		// Sorting IP addresses to find out which role the local elevator should have
-		sort.Slice(sortedIPs, func(i, j int) bool {
-			return bytes.Compare(sortedIPs[i], sortedIPs[j]) < 0
+		sort.Slice(sortedIPs, func(firstIpIndex, secondIpIndex int) bool {
+			return bytes.Compare(sortedIPs[firstIpIndex], sortedIPs[secondIpIndex]) < 0
 		})
 
 		checkRoles := func(sortedIPs []net.IP) string {
-			for i, ip := range sortedIPs {
+			for ipIndex, ip := range sortedIPs {
 				var expectedRole Role
-				switch i {
+				switch ipIndex {
 				case 0:
 					expectedRole = Master
 				case 1:
@@ -88,6 +82,7 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 			}
 			return ""
 		}
+		
 		newRole := ""
 
 		if len(p.Lost) > 0 {
@@ -97,9 +92,9 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 		if p.New != "" {
 			newRole = checkRoles(sortedIPs)
 		}
-
+		
 		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs}
+		masterIPCh <- sortedIPs[int(Master)]
 		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM")
-
 	}
 }

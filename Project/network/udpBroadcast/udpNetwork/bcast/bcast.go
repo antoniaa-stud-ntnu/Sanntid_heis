@@ -10,18 +10,16 @@ import (
 
 const bufSize = 1024
 
-// Encodes received values from `chans` into type-tagged JSON, then broadcasts
-// it on `port`
 func Transmitter(port int, chans ...interface{}) {
 	checkArgs(chans...)
 	typeNames := make([]string, len(chans))
 	selectCases := make([]reflect.SelectCase, len(typeNames))
-	for i, ch := range chans {
-		selectCases[i] = reflect.SelectCase{
+	for index, ch := range chans {
+		selectCases[index] = reflect.SelectCase{
 			Dir:  reflect.SelectRecv,
 			Chan: reflect.ValueOf(ch),
 		}
-		typeNames[i] = reflect.TypeOf(ch).Elem().String()
+		typeNames[index] = reflect.TypeOf(ch).Elem().String()
 	}
 
 	conn := conn.DialBroadcastUDP(port)
@@ -39,13 +37,10 @@ func Transmitter(port int, chans ...interface{}) {
 		        "Either send smaller packets, or go to network/bcast/bcast.go and increase the buffer size",
 		        len(ttj), bufSize, string(ttj)))
 		}
-		conn.WriteTo(ttj, addr)
-    		
+		conn.WriteTo(ttj, addr)	
 	}
 }
 
-// Matches type-tagged JSON received on `port` to element types of `chans`, then
-// sends the decoded value on the corresponding channel
 func Receiver(port int, chans ...interface{}) {
 	checkArgs(chans...)
 	chansMap := make(map[string]interface{})
@@ -82,43 +77,31 @@ type typeTaggedJSON struct {
 	JSON   []byte
 }
 
-// Checks that args to Tx'er/Rx'er are valid:
-//  All args must be channels
-//  Element types of channels must be encodable with JSON
-//  No element types are repeated
-// Implementation note:
-//  - Why there is no `isMarshalable()` function in encoding/json is a mystery,
-//    so the tests on element type are hand-copied from `encoding/json/encode.go`
 func checkArgs(chans ...interface{}) {
-	n := 0
+	numberOfCh := 0
 	for range chans {
-		n++
+		numberOfCh++
 	}
-	elemTypes := make([]reflect.Type, n)
+	elemTypes := make([]reflect.Type, numberOfCh)
 
-	for i, ch := range chans {
-		// Must be a channel
+	for index, ch := range chans {
 		if reflect.ValueOf(ch).Kind() != reflect.Chan {
 			panic(fmt.Sprintf(
 				"Argument must be a channel, got '%s' instead (arg# %d)",
-				reflect.TypeOf(ch).String(), i+1))
+				reflect.TypeOf(ch).String(), index+1))
 		}
 
 		elemType := reflect.TypeOf(ch).Elem()
 
-		// Element type must not be repeated
-		for j, e := range elemTypes {
-			if e == elemType {
+		for elemIndex, elem := range elemTypes {
+			if elem == elemType {
 				panic(fmt.Sprintf(
 					"All channels must have mutually different element types, arg# %d and arg# %d both have element type '%s'",
-					j+1, i+1, e.String()))
+					elemIndex+1, index+1, elem.String()))
 			}
 		}
-		elemTypes[i] = elemType
-
-		// Element type must be encodable with JSON
-		checkTypeRecursive(elemType, []int{i+1})
-
+		elemTypes[index] = elemType
+		checkTypeRecursive(elemType, []int{index+1})
 	}
 }
 

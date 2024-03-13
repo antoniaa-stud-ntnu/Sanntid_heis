@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-
 type Behaviour int
 
 const (
@@ -24,20 +23,20 @@ const (
 type Config struct {
 	ClearRequestVariant ClearRequestVariant
 	DoorOpenDuration    float64
-	MotorStopDuration	float64
+	MotorStopDuration   float64
 }
 
 type Elevator struct {
-	Floor    			int
-	Dirn     			elevio.MotorDirection
-	Requests 			[][]bool
-	State    			Behaviour
-	ObstructionActive 	bool
-	Config   			Config
+	Floor             int
+	Dirn              elevio.MotorDirection
+	Requests          [][]bool
+	State             Behaviour
+	ObstructionActive bool
+	Config            Config
 }
 
-func EbToString(eb Behaviour) string {
-	switch eb {
+func EbToString(elevBehave Behaviour) string {
+	switch elevBehave {
 	case Idle:
 		return "idle"
 	case DoorOpen:
@@ -115,25 +114,25 @@ func InitElev() Elevator {
 		}
 	}
 	return Elevator{
-		Floor:    			-1,
-		Dirn:     			elevio.Stop,
-		Requests: 			requests,
-		State:    			Idle,
-		ObstructionActive: 	false,
-		Config: 			Config{
-						ClearRequestVariant: 	CV_InDirn,
-						DoorOpenDuration:		3.0,
-						MotorStopDuration:		3.0,
-						},
+		Floor:             -1,
+		Dirn:              elevio.Stop,
+		Requests:          requests,
+		State:             Idle,
+		ObstructionActive: false,
+		Config: Config{
+			ClearRequestVariant: CV_InDirn,
+			DoorOpenDuration:    3.0,
+			MotorStopDuration:   15.0,
+		},
 	}
 }
 
-func GetCabRequests(es Elevator) []bool{
+func GetCabRequests(elev Elevator) []bool {
 	var cabRequests []bool
-	for floor := 0; floor < elevio.N_FLOORS; floor++{
+	for floor := 0; floor < elevio.N_FLOORS; floor++ {
 		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
 			if elevio.ButtonType(btn) == elevio.Cab {
-				cabRequests = append(cabRequests, es.Requests[floor][btn])
+				cabRequests = append(cabRequests, elev.Requests[floor][btn])
 			}
 		}
 	}
