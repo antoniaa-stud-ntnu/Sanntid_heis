@@ -4,7 +4,7 @@ import (
 	"Project/localElevator/elevator"
 	"Project/localElevator/elevio"
 	"Project/localElevator/requests"
-	"Project/localElevator/timer"
+	//"Project/localElevator/timer"
 	"Project/network/messages"
 	"Project/network/tcp"
 	"Project/network/udpBroadcast/udpNetwork/localip"
@@ -72,7 +72,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 				tcp.TCPSendMessage(masterConn, sendingBytes)
 
 				// Handling the cab request
-				OnRequestButtonPress(button.Floor, button.Button) // dersom det er cabReq så skal den ta bestillingen selv
+				OnRequestButtonPress(button.Floor, button.Button, peerTxEnable) // dersom det er cabReq så skal den ta bestillingen selv
 				elevio.SetButtonLamp(button.Floor, button.Button, true)
 			} else {
 				// Sending the hall request to master
@@ -88,7 +88,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 			tcp.TCPSendMessage(masterConn, sendingBytes)
 
 			// Handeling floor change and telling master if a hall request was removed
-			OnFloorArrival(floor, masterConn)
+			OnFloorArrival(floor, masterConn, peerTxEnable)
 
 			//elevator.ElevatorPrint(elev)
 
@@ -109,7 +109,7 @@ func FSM(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool
 						// Overwriting elevators hall requests as master could have given an order to another elevator
 						value := newHallRequests[floor][hallIndex]
 						if value {
-							OnRequestButtonPress(floor, elevio.ButtonType(hallIndex)) // legger til hallrequests fra Master og tar ordrene
+							OnRequestButtonPress(floor, elevio.ButtonType(hallIndex), peerTxEnable) // legger til hallrequests fra Master og tar ordrene
 							// fmt.Println("Checking if the request is true in elev.Requests: ", elev.Requests[floor][hallIndex])
 						} else {
 							elev.Requests[floor][hallIndex] = false
@@ -185,7 +185,7 @@ func OnInitBetweenFloors() {
 	elev.State = elevator.Moving
 }
 
-func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
+func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable chan bool) {
 	//fmt.Printf("\n\n%s(%d, %s)\n", "fsmOnRequestButtonPress", btnFloor, elevator.ButtonToString(btnType))
 
 	switch elev.State {
@@ -215,7 +215,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 
 		case elevator.Moving:
 			elevio.SetMotorDirection(elev.Dirn)
-			startMotorStopTimer(time.Duration(elev.Config.MotorStopDuration) * time.Second, peerTxEnable)
+			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 
 		case elevator.Idle:
 			break
@@ -225,7 +225,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType) {
 	// SetAllLights(elev)
 }
 
-func OnFloorArrival(newFloor int, masterConn net.Conn) {
+func OnFloorArrival(newFloor int, masterConn net.Conn, peerTxEnable chan bool) {
 	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
 
 	elev.Floor = newFloor
@@ -259,7 +259,7 @@ func OnFloorArrival(newFloor int, masterConn net.Conn) {
 			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
 		} else {
-			startMotorStopTimer(time.Duration(elev.Config.MotorStopDuration) * time.Second, peerTxEnable)
+			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 		}
 	default:
 		break
@@ -274,6 +274,7 @@ func OnDoorTimeout(peerTxEnable chan bool) {
 	case elevator.DoorOpen:
 		if elev.ObstructionActive {
 			//timer.Start(elev.Config.DoorOpenDuration)
+			
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
 			break
 		}
@@ -325,6 +326,10 @@ func motorAndDoorTimerInit() {
 }
 
 func startMotorStopTimer(motorStopDuration float64, peerTxEnable chan bool) {
+	if !motorStopTimer.Stop(){
+		<- motorStopTimer.C
+	}
+
 	motorStopTimer.Reset(time.Duration(motorStopDuration) * time.Second)
 	peerTxEnable <- true
 }
