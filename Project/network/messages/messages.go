@@ -98,7 +98,6 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toRoleCh
 	for {
 		select {
 		case jsonMsgReceived := <-jsonMessageCh:
-			fmt.Println("DistributeMsg: ", string(jsonMsgReceived))
 			jsonObjects := strings.Split(string(jsonMsgReceived), "&")
 
 			for _, jsonObject := range jsonObjects {
@@ -115,10 +114,10 @@ func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toRoleCh
 					switch dataWithTypeMsg.Type {
 					case MsgHRAInput, MsgElevState, MsgHallReq:
 						toRoleCh <- []byte(jsonObject)
-						fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithTypeMsg.Type)
+						//fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithTypeMsg.Type)
 					case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq:
 						toFSMCh <- []byte(jsonObject)
-						fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithTypeMsg.Type)
+						//fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithTypeMsg.Type)
 					}
 				}
 			}

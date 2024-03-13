@@ -41,7 +41,6 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 	for {
 		select {
 		case button := <-buttonsCh:
-			fmt.Println("ButtonpressCh")
 			if button.Button == elevio.Cab {
 				msgElevState.ElevState.CabRequests[button.Floor] = true
 
@@ -57,14 +56,12 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 				// fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
 			}
 		case floor := <-floorsCh:
-			fmt.Println("FloorCh")
 			msgElevState.ElevState.Floor = floor
 			sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
 			// tcp.TCPSendMessage(masterConn, sendingBytes)
 			toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
 
 			removingHallButtons := OnFloorArrival(floor, peerTxEnable)
-			fmt.Println("OnFloorArrival complete")
 			for btnIndex, btnValue := range removingHallButtons {
 				buttonType := elevio.ButtonType(btnIndex)
 				if btnValue {

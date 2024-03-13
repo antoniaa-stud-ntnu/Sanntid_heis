@@ -35,7 +35,7 @@ func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAl
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
 			//tcp.TCPSendMessage(backupConn, backupMsg)
 		}
-		fmt.Println("Master finished handling MsgElevState")
+		//fmt.Println("Master finished handling MsgElevState")
 
 	case messages.MsgHallReq:
 		fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")

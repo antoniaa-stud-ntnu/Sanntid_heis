@@ -38,7 +38,6 @@ func RoleFSM(roleAndSortedAliveElevsCh chan roleDistributor.RoleAndSortedAliveEl
 	for {
 		select {
 		case newMsg := <-toRoleFSMCh:
-			fmt.Println("newMsg")
 			switch role {
 			case "Master":
 				go master.HandlingMessages(newMsg, &iPToConnMap, &sortedAliveElevs, &allHallReqAndStates, sendNetworkMsgCh)
@@ -65,6 +64,7 @@ func RoleFSM(roleAndSortedAliveElevsCh chan roleDistributor.RoleAndSortedAliveEl
 
 				default:
 					isMasterCh <- false
+					fmt.Println("I am not master in roleFSM")
 				}
 
 				//masterIP := sortedAliveElevs[int(roleDistributor.Master)]

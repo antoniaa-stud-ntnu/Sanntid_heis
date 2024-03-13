@@ -1,7 +1,7 @@
 package tcp
 
 import (
-	
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -20,12 +20,16 @@ type EditConnMap struct {
 
 
 func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh chan EditConnMap, incommingNetworkMsgCh chan []byte) {
-	quitRecieverCh := make(chan bool)
+	var ctxRecieveMsg context.Context
+	var cancelRecievMsg context.CancelFunc
+
 	iPToConnMap := make(map[string]net.Conn)
 	var wasMaster bool
 	
+	
 	for {
 		isMaster := <- isMasterCh
+		fmt.Println("Am i master: ", isMaster)
 		if isMaster {
 			wasMaster = true
 			//go ListenForConnectionsAndHandle(masterPort, &iPToConnMap, editMastersConnMapCh, incommingNetworkMsgCh, quitRecieverCh)
@@ -59,7 +63,8 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 					editMastersConnMapCh <- EditConnMap{true, connectionsIP, conn}
 			
 					// Handle client connection in a goroutine
-					go recieveMessage(conn, incommingNetworkMsgCh, quitRecieverCh)
+					ctxRecieveMsg, cancelRecievMsg = context.WithCancel(context.Background())
+					go recieveMessage(conn, incommingNetworkMsgCh, ctxRecieveMsg)
 				}
 			}()
 			go func() {
@@ -73,7 +78,8 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 			}()
 		} else {
 			if wasMaster {
-				quitRecieverCh <- false
+				cancelRecievMsg()
+				
 				wasMaster = false
 			}
 			
@@ -81,60 +87,14 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 	}
 }
 
-/*
-// Master opening a listening server and saving+handling incomming connections from all the elevators
-func ListenForConnectionsAndHandle(masterPort string, iPToConnMap *map[string]net.Conn, editConnMapCopyCh chan EditConnMap, incommingNetworkMsgCh chan []byte, quitCh chan bool) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
-	if err != nil {
-		fmt.Printf("Could not resolve address: %s\n", err)
-		os.Exit(1)
-	}
 
-	listener, err := net.ListenTCP("tcp", tcpAddr)
-	if err != nil {
-		fmt.Println("Could not open listener: ", err)
-		return
-	}
-	defer listener.Close()
-
-	fmt.Printf("Server is listening on port %s\n", masterPort)
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("Could not accept connection: %s\n", err)
-			continue
-		}
-		//fmt.Println("Master accepted new connection: ", conn)
-
-		connectionsIP := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
-		//fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
-		(*iPToConnMap)[connectionsIP] = conn
-		//fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
-		editConnMapCopyCh <- EditConnMap{true, connectionsIP, conn}
-
-		// Handle client connection in a goroutine
-		go recieveMessage(conn, incommingNetworkMsgCh, quitCh)
-	}
-}
-
-func LookForClosedConns(iPToConnMap *map[string]net.Conn) {
-	for ip, conn := range *iPToConnMap {
-
-		_, err := conn.Read(make([]byte, 1024))
-		if err != nil {
-			
-			fmt.Println("Deleting a conn: ", (*iPToConnMap))
-			delete((*iPToConnMap), ip)
-		}
-	}
-}
-*/
 
 // Recieving messages and sending them on a channel for to be handeled else where
 
 func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net.Conn, incommingNetworkMsgCh chan []byte) {
-	quitOldReciever := make(chan bool)
+	var ctxRecieveMsg context.Context
+	var cancelRecievMsg context.CancelFunc
+	
 	var conn net.Conn
 	for {
 		IP := <-ipCh
@@ -144,8 +104,9 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 		}
 
 		if conn != nil {
-			conn.Close()
-			quitOldReciever <- true
+			//conn.Close()
+			//quitOldReciever <- true
+			cancelRecievMsg()
 		}
 
 
@@ -161,21 +122,21 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 		fmt.Println("Connected to master")
 		connCh <- conn
 
-		go recieveMessage(conn, incommingNetworkMsgCh, quitOldReciever)
+		ctxRecieveMsg, cancelRecievMsg = context.WithCancel(context.Background())
+		go recieveMessage(conn, incommingNetworkMsgCh, ctxRecieveMsg)
 	}
 }
 
-func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, quitCh <-chan bool) {
-	defer conn.Close()
-	fmt.Println("In TCP recieve message")
-
-	buffer := make([]byte, 65536)
+func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg context.Context) {
 
 	for {
 		select {
-		case <- quitCh:
+		case <- ctxRecieveMsg.Done():
+			//fmt.Println("Quit goroutine, connection:", conn)
 			return
 		default:
+			//defer conn.Close()
+			buffer := make([]byte, 65536)
 			data, err := conn.Read(buffer)
 			if err != nil {
 				conn.Close()
@@ -201,7 +162,6 @@ type SendNetworkMsg struct {
 
 func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterconn ch)
 	for {
-		fmt.Println("Sending msg")
 		sendNetworkMsg := <-sendNetworkMsgCh
 		conn := sendNetworkMsg.RecieverConn
 		message := sendNetworkMsg.Message
