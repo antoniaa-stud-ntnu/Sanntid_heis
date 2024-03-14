@@ -3,6 +3,7 @@ package requests
 import (
 	"Project/localElevator/elevator"
 	"Project/localElevator/elevio"
+	//"fmt"
 )
 
 type DirnBehaviourPair struct {
