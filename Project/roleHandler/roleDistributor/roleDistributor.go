@@ -33,7 +33,11 @@ func (role Role) String() string {
 	}
 }
 
-func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs, masterIPCh chan net.IP) {
+func RoleDistributor(
+	peerUpdateToRoleDistributorCh chan peers.PeerUpdate,
+	roleAndSortedAliveElevs chan<- RoleAndSortedAliveElevs,
+	masterIPCh chan net.IP,
+) {
 	localIPstr, err := localip.LocalIP()
 	if err != nil {
 		fmt.Printf("Could not get local ip: %v\n", err)

@@ -44,14 +44,12 @@ type HallReqMsg struct {
 
 func PackMessage(structType string, msg interface{}) []byte {
 	msgJsonBytes, _ := json.Marshal(msg)
-
 	dataToSend := dataWithTypeMsg{
 		Type: structType,
 		Data: msgJsonBytes,
 	}
 	finalJSONBytes, _ := json.Marshal(dataToSend)
 	//fmt.Println(string(finalJSONBytes), "Structtype: ", structType)
-
 	finalJSONBytes = append(finalJSONBytes, '&')
 	return finalJSONBytes
 }
@@ -92,35 +90,31 @@ func UnpackMessage(jsonBytes []byte) (string, interface{}) {
 	}
 }
 
-func DistributeMessages(jsonMessageCh chan []byte, toFSMCh chan []byte, toRoleCh chan []byte) {
+func DistributeMessages(
+	jsonMessageCh chan []byte,
+	toFSMCh chan []byte,
+	toRoleCh chan []byte,
+) {
 	var dataWithTypeMsg dataWithTypeMsg
-
 	for {
-		select {
-		case jsonMsgReceived := <-jsonMessageCh:
-			jsonObjects := strings.Split(string(jsonMsgReceived), "&")
-
-			for _, jsonObject := range jsonObjects {
-				if jsonObject != "" {
-
-					err := json.Unmarshal([]byte(jsonObject), &dataWithTypeMsg)
-					if err != nil {
-
-						fmt.Println("Error decoding json:", err)
-						fmt.Println("jsonObject: ", jsonObject)
-						break
-					}
-
-					switch dataWithTypeMsg.Type {
-					case MsgHRAInput, MsgElevState, MsgHallReq:
-						toRoleCh <- []byte(jsonObject)
-						//fmt.Println("Inside DistributeMessages, sent a message to mbdFSM: ", dataWithTypeMsg.Type)
-					case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq:
-						toFSMCh <- []byte(jsonObject)
-						//fmt.Println("Inside DistributeMessages, sent a message to FSM: ", dataWithTypeMsg.Type)
-					}
+		jsonMsgReceived := <-jsonMessageCh
+		jsonObjects := strings.Split(string(jsonMsgReceived), "&")
+		for _, jsonObject := range jsonObjects {
+			if jsonObject != "" {
+				err := json.Unmarshal([]byte(jsonObject), &dataWithTypeMsg)
+				if err != nil {
+					fmt.Println("Error decoding json:", err)
+					fmt.Println("jsonObject: ", jsonObject)
+					break
+				}
+				switch dataWithTypeMsg.Type {
+				case MsgHRAInput, MsgElevState, MsgHallReq:
+					toRoleCh <- []byte(jsonObject)
+				case MsgHallLigths, MsgAssignedHallReq, MsgRestoreCabReq:
+					toFSMCh <- []byte(jsonObject)
 				}
 			}
 		}
+		
 	}
 }

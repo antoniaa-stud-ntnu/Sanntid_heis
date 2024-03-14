@@ -6,7 +6,6 @@ import (
 	"Project/network/udpBroadcast/udpNetwork/peers"
 	"flag"
 	"fmt"
-	"time"
 )
 
 type HelloMsg struct {
@@ -18,7 +17,6 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, p
 	var id string
 	flag.StringVar(&id, "id", "", "id of this peer")
 	flag.Parse()
-
 	if id == "" {
 		localIP, err := localip.LocalIP()
 		if err != nil {
@@ -28,38 +26,22 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, p
 		//id = fmt.Sprintf("%s-%d", localIP, os.Getpid())
 		id = fmt.Sprintf("%s", localIP)
 	}
-
 	peerUpdateCh := make(chan peers.PeerUpdate)
-
 	go peers.Transmitter(15645, id, peerTxEnable)
 	go peers.Receiver(15645, peerUpdateCh)
-
 	helloTx := make(chan HelloMsg)
 	helloRx := make(chan HelloMsg)
-
 	go bcast.Transmitter(16565, helloTx)
 	go bcast.Receiver(16565, helloRx)
-
-	go func() {
-		helloMsg := HelloMsg{"Hello from " + id, 0}
-		for {
-			helloMsg.Iter++
-			helloTx <- helloMsg
-			time.Sleep(1 * time.Second)
-		}
-	}()
-
 	fmt.Println("Udp broadcasting started")
 	for {
-		select {
-		case newPeerUpd := <-peerUpdateCh:
-			if localIPInPeers(newPeerUpd) {
-				peerUpdateToPrimaryHandlerCh <- newPeerUpd
-				fmt.Printf("Peer update:\n")
-				fmt.Printf("  Peers:    %q\n", newPeerUpd.Peers)
-				fmt.Printf("  New:      %q\n", newPeerUpd.New)
-				fmt.Printf("  Lost:     %q\n", newPeerUpd.Lost)
-			}
+		newPeerUpd := <-peerUpdateCh
+		if localIPInPeers(newPeerUpd) {
+			peerUpdateToPrimaryHandlerCh <- newPeerUpd
+			fmt.Printf("Peer update:\n")
+			fmt.Printf("  Peers:    %q\n", newPeerUpd.Peers)
+			fmt.Printf("  New:      %q\n", newPeerUpd.New)
+			fmt.Printf("  Lost:     %q\n", newPeerUpd.Lost)
 		}
 	}
 }

@@ -93,7 +93,11 @@ func ShouldClearRequest(elev elevator.Elevator) []bool {
 	return elev.Requests[elev.Floor]
 }
 
-func ShouldClearImmediately(elev elevator.Elevator, btn_floor int, btn_type elevio.ButtonType) bool {
+func ShouldClearImmediately(
+	elev elevator.Elevator,
+	btn_floor int,
+	btn_type elevio.ButtonType,
+) bool {
 	switch elev.Config.ClearRequestVariant {
 	case elevator.CV_All:
 		return elev.Floor == btn_floor

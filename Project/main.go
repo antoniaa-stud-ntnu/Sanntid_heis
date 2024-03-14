@@ -25,17 +25,17 @@ func main() {
 	obstrCh := make(chan bool)
 
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
-	roleAndSortedAliveElevsCh := make(chan roleDistributor.RoleAndSortedAliveElevs, 2)
-	isMasterCh := make(chan bool)
-	editMastersConnMapCh := make(chan tcp.EditConnMap)
+	roleAndSortedAliveElevsCh := make(chan roleDistributor.RoleAndSortedAliveElevs, 5)
+	isMasterCh := make(chan bool, 5)
+	editMastersConnMapCh := make(chan tcp.EditConnMap, 5)
 
 	masterIPCh := make(chan net.IP)
 	masterConnCh := make(chan net.Conn)
 	//quitOldRecieverCh := make(chan bool)
 
-	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg, 100)
-	incommingNetworkMsgCh := make(chan []byte, 100)
-	
+	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg, 5)
+	incommingNetworkMsgCh := make(chan []byte, 5)
+
 	toSingleElevFSMCh := make(chan []byte, 5)
 	toRoleFSMCh := make(chan []byte, 5)
 

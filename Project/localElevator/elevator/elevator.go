@@ -74,37 +74,6 @@ func ButtonToString(btn elevio.ButtonType) string {
 	}
 }
 
-func ElevatorPrint(es Elevator) {
-	fmt.Printf(" +--------------------+\n")
-	fmt.Printf(
-		" |floor = %-2d        |\n"+
-			"  |dirn  = %-12.12s|\n"+
-			"  |behav = %-12.12s|\n",
-		es.Floor,
-		DirnToString(es.Dirn),
-		EbToString(es.State),
-	)
-	fmt.Printf(" +--------------------+\n")
-	fmt.Printf("  |  | up  | dn  | cab |\n")
-	for f := elevio.N_FLOORS - 1; f >= 0; f-- {
-		fmt.Printf("  | %d", f)
-		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
-			if (f == elevio.N_FLOORS-1 && btn == int(elevio.HallUp)) || (f == 0 && btn == int(elevio.HallDown)) {
-				fmt.Printf("|     ")
-			} else {
-				if es.Requests[f][btn] {
-					fmt.Printf("|  #  ")
-				} else {
-					fmt.Printf("|  -  ")
-				}
-			}
-		}
-		fmt.Printf("|\n")
-	}
-
-	fmt.Printf(" +--------------------+\n")
-}
-
 func InitElev() Elevator {
 	requests := make([][]bool, 0)
 	for floor := 0; floor < elevio.N_FLOORS; floor++ {
@@ -137,4 +106,35 @@ func GetCabRequests(elev Elevator) []bool {
 		}
 	}
 	return cabRequests
+}
+
+
+func ElevatorPrint(es Elevator) {
+	fmt.Printf(" +--------------------+\n")
+	fmt.Printf(
+		" |floor = %-2d        |\n"+
+			"  |dirn  = %-12.12s|\n"+
+			"  |behav = %-12.12s|\n",
+		es.Floor,
+		DirnToString(es.Dirn),
+		EbToString(es.State),
+	)
+	fmt.Printf(" +--------------------+\n")
+	fmt.Printf("  |  | up  | dn  | cab |\n")
+	for f := elevio.N_FLOORS - 1; f >= 0; f-- {
+		fmt.Printf("  | %d", f)
+		for btn := 0; btn < elevio.N_BUTTONS; btn++ {
+			if (f == elevio.N_FLOORS-1 && btn == int(elevio.HallUp)) || (f == 0 && btn == int(elevio.HallDown)) {
+				fmt.Printf("|     ")
+			} else {
+				if es.Requests[f][btn] {
+					fmt.Printf("|  #  ")
+				} else {
+					fmt.Printf("|  -  ")
+				}
+			}
+		}
+		fmt.Printf("|\n")
+	}
+	fmt.Printf(" +--------------------+\n")
 }

@@ -33,14 +33,18 @@ var msgElevState = messages.ElevStateMsg{
 //var doorOpenTimerCh <- chan time.Time
 
 
-func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterConnCh chan net.Conn, toNetworkCh chan tcp.SendNetworkMsg, toFSMCh chan []byte, peerTxEnable chan bool) {
+func LocalElevatorHandler(
+	buttonsCh chan elevio.ButtonEvent, 
+	floorsCh chan int, obstrCh chan bool, 
+	masterConnCh chan net.Conn, 
+	toNetworkCh chan tcp.SendNetworkMsg, 
+	toFSMCh chan []byte, 
+	peerTxEnable chan bool,
+) {
 	masterConn := <-masterConnCh
-
 	localip, _ := localip.LocalIP()
 	msgElevState.IpAddr = localip
-
 	motorAndDoorTimerInit()
-
 	for {
 		select {
 		case button := <-buttonsCh:
@@ -49,7 +53,6 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 				//fmt.Println("To master elevState: ", msgElevState.ElevState)
 				sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
 				toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
-
 				OnRequestButtonPress(button.Floor, button.Button, peerTxEnable, toNetworkCh, masterConn)
 				elevio.SetButtonLamp(button.Floor, button.Button, true)
 			} else {
@@ -65,9 +68,7 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 			msgElevState.ElevState.CabRequests[floor] = false
 			sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
 			toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
-			
 			sendHallRemovalToConn(removingHallButtons, floor, toNetworkCh, masterConn)
-			
 		case obstr := <-obstrCh:
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			OnObstruction(obstr)
@@ -81,8 +82,9 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 					for hallIndex := 0; hallIndex < len(newHallRequests[hallIndex]); hallIndex++ {
 						value := newHallRequests[floor][hallIndex]
 						if value {
-							OnRequestButtonPress(floor, elevio.ButtonType(hallIndex), peerTxEnable, toNetworkCh, masterConn)
-							// fmt.Println("Checking if the request is true in elev.Requests: ", elev.Requests[floor][hallIndex])
+							hallButton := elevio.ButtonType(hallIndex)
+							OnRequestButtonPress(floor, hallButton, peerTxEnable, toNetworkCh, masterConn)
+							
 						} else {
 							elev.Requests[floor][hallIndex] = false
 						}
@@ -91,8 +93,10 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 				//elevator.ElevatorPrint(elev)
 				fmt.Println("Requevec hall request, all requests now: ", elev.Requests)
 			case messages.MsgHallLigths:
-				elevio.SetButtonLamp(data.(messages.HallReqMsg).Floor, data.(messages.HallReqMsg).Button, data.(messages.HallReqMsg).TAddFRemove)
-
+				floor := data.(messages.HallReqMsg).Floor
+				button := data.(messages.HallReqMsg).Button
+				addOrRemove :=data.(messages.HallReqMsg).TAddFRemove
+				elevio.SetButtonLamp(floor, button, addOrRemove)
 			case messages.MsgRestoreCabReq:
 				for floor := 0; floor < len(data.([]bool)); floor++ {
 					elev.Requests[floor][elevio.Cab] = data.([]bool)[floor]
@@ -141,9 +145,14 @@ func OnInitBetweenFloors() {
 	elev.State = elevator.Moving
 }
 
-func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable chan bool, toNetworkCh chan tcp.SendNetworkMsg, masterConn net.Conn) {
+func OnRequestButtonPress(
+	btnFloor int, 
+	btnType elevio.ButtonType, 
+	peerTxEnable chan bool, 
+	toNetworkCh chan tcp.SendNetworkMsg, 
+	masterConn net.Conn,
+) {
 	//fmt.Printf("\n\n%s(%d, %s)\n", "fsmOnRequestButtonPress", btnFloor, elevator.ButtonToString(btnType))
-
 	switch elev.State {
 	case elevator.DoorOpen:
 		if requests.ShouldClearImmediately(elev, btnFloor, btnType) {
@@ -154,16 +163,13 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 		} else {
 			elev.Requests[btnFloor][btnType] = true
 		}
-
 	case elevator.Moving:
 		elev.Requests[btnFloor][btnType] = true
-
 	case elevator.Idle:
 		elev.Requests[btnFloor][btnType] = true
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
-
 		switch pair.State {
 		case elevator.DoorOpen:
 			elevio.SetDoorOpenLamp(true)
@@ -174,11 +180,9 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 			var removingHallButtons [2]bool
 			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
 			sendHallRemovalToConn(removingHallButtons, btnFloor, toNetworkCh, masterConn)
-
 		case elevator.Moving:
 			elevio.SetMotorDirection(elev.Dirn)
 			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
-
 		case elevator.Idle:
 			//doorOpenTimer.Stop()
 			//doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
@@ -192,14 +196,11 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 	var removingHallButtons [2]bool
 	fmt.Printf("\n\n%s(%d)\n", "Arrival on floor ", newFloor)
-
 	elev.Floor = newFloor
 	elevio.SetFloorIndicator(elev.Floor)
-
 	// Reset motor timer
 	//fmt.Println("Reset motor timer")
 	startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
-
 	switch elev.State {
 	case elevator.Moving:
 		if requests.ShouldStop(elev) { //I en etasje med request eller ingen requests over/under
@@ -212,10 +213,6 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 			//fmt.Println("The elevators request list at this floor is: ", elev.Requests[newFloor])
 			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
 			//fmt.Println("The elevators request cab request at this floor is: ", elev.Requests[newFloor][2])
-
-			//if !doorOpenTimer.Stop() {
-			//	<-doorOpenTimer.C
-			//}
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			SetAllCabLights(elev)
@@ -245,13 +242,11 @@ func OnDoorTimeout(masterConn net.Conn, toNetworkCh chan tcp.SendNetworkMsg) {
 		}
 		//fmt.Println("Elev state before choosing new dir: ", elev.State)
 		//fmt.Println("Elev dirn before choosing new dir: ", elev.Dirn)
-
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
 		//fmt.Println("Elev state after choosing new dir: ", elev.State)
 		//fmt.Println("Elev dirn after choosing new dir: ", elev.Dirn)
-
 		switch elev.State {
 		case elevator.DoorOpen:
 			//fmt.Println("Door open after choosing new dir")
@@ -263,14 +258,11 @@ func OnDoorTimeout(masterConn net.Conn, toNetworkCh chan tcp.SendNetworkMsg) {
 			sendHallRemovalToConn(removingHallButtons, elev.Floor, toNetworkCh, masterConn)
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
-
-			
 		case elevator.Moving:
 			elevio.SetDoorOpenLamp(false)
 			elevio.SetMotorDirection(elev.Dirn)
 			//startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 			motorStopTimer.Reset(time.Duration(elev.Config.MotorStopDuration)* time.Second)
-			
 		case elevator.Idle:
 			elevio.SetDoorOpenLamp(false)
 			//fmt.Println("Setting motor dir to: ", elev.Dirn)
@@ -278,12 +270,8 @@ func OnDoorTimeout(masterConn net.Conn, toNetworkCh chan tcp.SendNetworkMsg) {
 			//fmt.Println("Inni idle, restting timer")
 			//startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 			motorStopTimer.Reset(24 * time.Hour)
-			
-			
 		}
-		
 	default:
-		
 	}
 }
 
@@ -319,7 +307,12 @@ func startMotorStopTimer(motorStopDuration float64, peerTxEnable chan bool) {
 	peerTxEnable <- true
 }
 
-func sendHallRemovalToConn(removingHallButtons [2]bool, floor int, toNetworkCh chan tcp.SendNetworkMsg, masterConn net.Conn) {
+func sendHallRemovalToConn(
+	removingHallButtons [2]bool, 
+	floor int, 
+	toNetworkCh chan tcp.SendNetworkMsg, 
+	masterConn net.Conn,
+) {
 	for btnIndex, btnValue := range removingHallButtons {
 		buttonType := elevio.ButtonType(btnIndex)
 		if btnValue {

@@ -10,26 +10,27 @@ import (
 )
 
 const MasterPort = "20050" // endre navn eller flytte til annen fil 
-
 type EditConnMap struct {
 	Insert 		bool
 	ClientIP 	string
 	Conn       	net.Conn
 }
 
-
-func EstablishMainListener(isMainListenerCh chan bool, listenerPort string, editMastersConnMapCh chan EditConnMap, incommingNetworkMsgCh chan []byte) {
+func EstablishMainListener(
+	isMainListenerCh chan bool, 
+	listenerPort string,
+	editMastersConnMapCh chan EditConnMap,
+	incommingNetworkMsgCh chan []byte,
+) {
 	var ctxRecieveMsg context.Context
 	var cancelRecievMsg context.CancelFunc
 	iPToConnMap := make(map[string]net.Conn)
 	var wasMainListener bool
-	
 	for {
 		isMainListener := <- isMainListenerCh
 		fmt.Println("Am i master: ", isMainListener)
 		if isMainListener {
 			wasMainListener = true
-			//go ListenForConnectionsAndHandle(masterPort, &iPToConnMap, editMastersConnMapCh, incommingNetworkMsgCh, quitRecieverCh)
 			go func() {
 				tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+listenerPort)
 				if err != nil {
@@ -42,17 +43,13 @@ func EstablishMainListener(isMainListenerCh chan bool, listenerPort string, edit
 					return
 				}
 				defer listener.Close()
-			
 				fmt.Printf("Server is listening on port %s\n", listenerPort)
-			
 				for {
 					conn, err := listener.Accept()
 					if err != nil {
 						fmt.Printf("Could not accept connection: %s\n", err)
 						continue
 					}
-					//fmt.Println("Master accepted new connection: ", conn)
-			
 					connectionsIP := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
 					//fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
 					(iPToConnMap)[connectionsIP] = conn
@@ -79,14 +76,15 @@ func EstablishMainListener(isMainListenerCh chan bool, listenerPort string, edit
 				cancelRecievMsg()
 				wasMainListener = false
 			}
-			
 		}
 	}
 }
 
-
-
-func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net.Conn, incommingNetworkMsgCh chan []byte) {
+func EstablishConnectionAndListen(
+	ipCh chan net.IP, port string,
+	connCh chan net.Conn,
+	incommingNetworkMsgCh chan []byte,
+) {
 	var ctxRecieveMsg context.Context
 	var cancelRecievMsg context.CancelFunc
 	var conn net.Conn
@@ -97,8 +95,6 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 			fmt.Printf("Could not resolve address: %s\n", err)
 		}
 		if conn != nil {
-			//conn.Close()
-			//quitOldReciever <- true
 			cancelRecievMsg()
 		}
 		for {
@@ -112,21 +108,21 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 		}
 		fmt.Println("Connected to master")
 		connCh <- conn
-
 		ctxRecieveMsg, cancelRecievMsg = context.WithCancel(context.Background())
 		go recieveMessage(conn, incommingNetworkMsgCh, ctxRecieveMsg)
 	}
 }
 
-
-func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg context.Context) {
+func recieveMessage(
+	conn net.Conn,
+	incommingMsgCh chan<- []byte,
+	ctxRecieveMsg context.Context,
+) {
 	for {
 		select {
 		case <- ctxRecieveMsg.Done():
-			//fmt.Println("Quit goroutine, connection:", conn)
 			return
 		default:
-			//defer conn.Close()
 			buffer := make([]byte, 65536)
 			data, err := conn.Read(buffer)
 			if err != nil {
@@ -144,12 +140,10 @@ func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg c
 		}
 	}
 }
-
 type SendNetworkMsg struct {
 	RecieverConn net.Conn
 	Message 	[]byte
 }
-
 
 func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterconn ch)
 	for {
@@ -169,13 +163,3 @@ func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterco
 	}
 }
 
-
-/*
-tcpFSM
-for {
-	select{
-		case <- sendNetworkMsgCh
-		case <- reciev
-		case <- master	
-	}
-}*/
