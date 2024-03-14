@@ -50,7 +50,7 @@ func PackMessage(structType string, msg interface{}) []byte {
 		Data: msgJsonBytes,
 	}
 	finalJSONBytes, _ := json.Marshal(dataToSend)
-	fmt.Println(string(finalJSONBytes), "Structtype: ", structType)
+	//fmt.Println(string(finalJSONBytes), "Structtype: ", structType)
 
 	finalJSONBytes = append(finalJSONBytes, '&')
 	return finalJSONBytes

@@ -19,8 +19,8 @@ func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAl
 	switch typeMsg {
 	case messages.MsgElevState:
 		//fmt.Println(dataMsg)
-		fmt.Println("Master rceived MsgElevState from IP-", dataMsg.(messages.ElevStateMsg).IpAddr)
-		fmt.Println("ElevState: ", dataMsg.(messages.ElevStateMsg).ElevState)
+		//fmt.Println("Master rceived MsgElevState from IP-", dataMsg.(messages.ElevStateMsg).IpAddr)
+		//fmt.Println("ElevState: ", dataMsg.(messages.ElevStateMsg).ElevState)
 		//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)
 		//fmt.Println("State: ", dataMsg.(messages.ElevStateMsg).ElevState)
 		updatingIPAddr := dataMsg.(messages.ElevStateMsg).IpAddr
@@ -36,11 +36,11 @@ func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAl
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
 			//tcp.TCPSendMessage(backupConn, backupMsg)
 		}
-		fmt.Println("Master finished handling MsgElevState")
+		//fmt.Println("Master finished handling MsgElevState")
 
 	case messages.MsgHallReq:
-		fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
-		fmt.Println("HallReq: ", dataMsg.(messages.HallReqMsg))
+		//fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
+		//fmt.Println("HallReq: ", dataMsg.(messages.HallReqMsg))
 		(*allHallReqAndStates).HallRequests[dataMsg.(messages.HallReqMsg).Floor][dataMsg.(messages.HallReqMsg).Button] = dataMsg.(messages.HallReqMsg).TAddFRemove
 
 		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
@@ -56,16 +56,16 @@ func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAl
 		}
 
 		inputToHRA.HallRequests = (*allHallReqAndStates).HallRequests
-		fmt.Println("All hall request and states: ", *allHallReqAndStates)
-		fmt.Println("SortedAliveElevs: ", *sortedAliveElevs)
+		//fmt.Println("All hall request and states: ", *allHallReqAndStates)
+		//fmt.Println("SortedAliveElevs: ", *sortedAliveElevs)
 
 		for _, ip := range *sortedAliveElevs {
 			state, exists := (*allHallReqAndStates).States[ip.String()]
 			if exists {
-				fmt.Println("State of this ip: ", state)
+				//fmt.Println("State of this ip: ", state)
 				inputToHRA.States[ip.String()] = state
 			} else {
-				fmt.Println("No state for this ip: ", ip.String())
+				//fmt.Println("No state for this ip: ", ip.String())
 			}
 		}
 		/*
@@ -83,7 +83,7 @@ func HandlingMessages(jsonMsg []byte, iPToConnMap *map[string]net.Conn, sortedAl
 
 		for ipAddr, hallRequest := range output {
 			jsonHallReqMsg := messages.PackMessage(messages.MsgAssignedHallReq, hallRequest)
-			fmt.Println("iPToConnMap: ", *iPToConnMap)
+			//fmt.Println("iPToConnMap: ", *iPToConnMap)
 			//tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonHallReq)
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{(*iPToConnMap)[ipAddr], jsonHallReqMsg}
 			// fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
@@ -124,9 +124,3 @@ func runHallRequestAssigner(input messages.HRAInput) map[string][][2]bool {
 	return *output
 }
 
-/*
-	fmt.Printf("output: \n")
-	for k, v := range *output {
-		fmt.Printf("%6v :  %+v\n", k, v)
-	}
-*/

@@ -197,7 +197,7 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 	elevio.SetFloorIndicator(elev.Floor)
 
 	// Reset motor timer
-	fmt.Println("Reset motor timer")
+	//fmt.Println("Reset motor timer")
 	startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 
 	switch elev.State {
@@ -243,18 +243,18 @@ func OnDoorTimeout(masterConn net.Conn, toNetworkCh chan tcp.SendNetworkMsg) {
 			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			break
 		}
-		fmt.Println("Elev state before choosing new dir: ", elev.State)
-		fmt.Println("Elev dirn before choosing new dir: ", elev.Dirn)
+		//fmt.Println("Elev state before choosing new dir: ", elev.State)
+		//fmt.Println("Elev dirn before choosing new dir: ", elev.Dirn)
 
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
-		fmt.Println("Elev state after choosing new dir: ", elev.State)
-		fmt.Println("Elev dirn after choosing new dir: ", elev.Dirn)
+		//fmt.Println("Elev state after choosing new dir: ", elev.State)
+		//fmt.Println("Elev dirn after choosing new dir: ", elev.Dirn)
 
 		switch elev.State {
 		case elevator.DoorOpen:
-			fmt.Println("Door open after choosing new dir")
+			//fmt.Println("Door open after choosing new dir")
 			//timer.Start(elev.Config.DoorOpenDuration)
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration)* time.Second)
 			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
@@ -273,9 +273,9 @@ func OnDoorTimeout(masterConn net.Conn, toNetworkCh chan tcp.SendNetworkMsg) {
 			
 		case elevator.Idle:
 			elevio.SetDoorOpenLamp(false)
-			fmt.Println("Setting motor dir to: ", elev.Dirn)
+			//fmt.Println("Setting motor dir to: ", elev.Dirn)
 			elevio.SetMotorDirection(elev.Dirn)
-			fmt.Println("Inni idle, restting timer")
+			//fmt.Println("Inni idle, restting timer")
 			//startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 			motorStopTimer.Reset(24 * time.Hour)
 			
@@ -314,7 +314,7 @@ func motorAndDoorTimerInit() {
 }
 
 func startMotorStopTimer(motorStopDuration float64, peerTxEnable chan bool) {
-	fmt.Println("Start motor stop timer")
+	//fmt.Println("Start motor stop timer")
 	motorStopTimer.Reset(time.Duration(motorStopDuration) * time.Second)
 	peerTxEnable <- true
 }

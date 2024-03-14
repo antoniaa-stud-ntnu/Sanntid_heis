@@ -95,6 +95,6 @@ func RoleDistributor(peerUpdateToRoleDistributorCh chan peers.PeerUpdate, roleAn
 		
 		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs}
 		masterIPCh <- sortedIPs[int(Master)]
-		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM")
+		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM", roleAndSortedAliveElevs)
 	}
 }
