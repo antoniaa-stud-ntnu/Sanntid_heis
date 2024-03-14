@@ -10,6 +10,11 @@ import (
 
 const bufSize = 1024
 
+type typeTaggedJSON struct {
+	TypeId string
+	JSON   []byte
+}
+
 func Transmitter(port int, chans ...interface{}) {
 	checkArgs(chans...)
 	typeNames := make([]string, len(chans))
@@ -32,12 +37,12 @@ func Transmitter(port int, chans ...interface{}) {
 			JSON:   jsonstr,
 		})
 		if len(ttj) > bufSize {
-		    panic(fmt.Sprintf(
-		        "Tried to send a message longer than the buffer size (length: %d, buffer size: %d)\n\t'%s'\n"+
-		        "Either send smaller packets, or go to network/bcast/bcast.go and increase the buffer size",
-		        len(ttj), bufSize, string(ttj)))
+			panic(fmt.Sprintf(
+				"Tried to send a message longer than the buffer size (length: %d, buffer size: %d)\n\t'%s'\n"+
+					"Either send smaller packets, or go to network/bcast/bcast.go and increase the buffer size",
+				len(ttj), bufSize, string(ttj)))
 		}
-		conn.WriteTo(ttj, addr)	
+		conn.WriteTo(ttj, addr)
 	}
 }
 
@@ -55,7 +60,6 @@ func Receiver(port int, chans ...interface{}) {
 		if e != nil {
 			fmt.Printf("bcast.Receiver(%d, ...):ReadFrom() failed: \"%+v\"\n", port, e)
 		}
-
 		var ttj typeTaggedJSON
 		json.Unmarshal(buf[0:n], &ttj)
 		ch, ok := chansMap[ttj.TypeId]
@@ -72,25 +76,18 @@ func Receiver(port int, chans ...interface{}) {
 	}
 }
 
-type typeTaggedJSON struct {
-	TypeId string
-	JSON   []byte
-}
-
 func checkArgs(chans ...interface{}) {
 	numberOfCh := 0
 	for range chans {
 		numberOfCh++
 	}
 	elemTypes := make([]reflect.Type, numberOfCh)
-
 	for index, ch := range chans {
 		if reflect.ValueOf(ch).Kind() != reflect.Chan {
 			panic(fmt.Sprintf(
 				"Argument must be a channel, got '%s' instead (arg# %d)",
 				reflect.TypeOf(ch).String(), index+1))
 		}
-
 		elemType := reflect.TypeOf(ch).Elem()
 
 		for elemIndex, elem := range elemTypes {
@@ -101,12 +98,11 @@ func checkArgs(chans ...interface{}) {
 			}
 		}
 		elemTypes[index] = elemType
-		checkTypeRecursive(elemType, []int{index+1})
+		checkTypeRecursive(elemType, []int{index + 1})
 	}
 }
 
-
-func checkTypeRecursive(val reflect.Type, offsets []int){
+func checkTypeRecursive(val reflect.Type, offsets []int) {
 	switch val.Kind() {
 	case reflect.Complex64, reflect.Complex128, reflect.Chan, reflect.Func, reflect.UnsafePointer:
 		panic(fmt.Sprintf(

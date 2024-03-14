@@ -91,7 +91,7 @@ func InitElev() Elevator {
 		Config: Config{
 			ClearRequestVariant: CV_InDirn,
 			DoorOpenDuration:    3.0,
-			MotorStopDuration:   15.0,
+			MotorStopDuration:   10.0,
 		},
 	}
 }

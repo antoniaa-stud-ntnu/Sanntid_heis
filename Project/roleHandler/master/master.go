@@ -21,29 +21,17 @@ func HandlingMessages(
 	sendNetworkMsgCh chan tcp.SendNetworkMsg,
 ) {
 	typeMsg, dataMsg := messages.UnpackMessage(jsonMsg)
-	//fmt.Println("In master.HandlingMsg, and iPToConnMap is: ", iPToConnMap)
 	switch typeMsg {
 	case messages.MsgElevState:
-		//fmt.Println(dataMsg)
-		//fmt.Println("Master rceived MsgElevState from IP-", dataMsg.(messages.ElevStateMsg).IpAddr)
-		//fmt.Println("ElevState: ", dataMsg.(messages.ElevStateMsg).ElevState)
-		//fmt.Println("IpAddr: ", dataMsg.(messages.ElevStateMsg).IpAddr)
-		//fmt.Println("State: ", dataMsg.(messages.ElevStateMsg).ElevState)
 		updatingIPAddr := dataMsg.(messages.ElevStateMsg).IpAddr
 		updatingElevState := dataMsg.(messages.ElevStateMsg).ElevState
 		(*allHallReqAndStates).States[updatingIPAddr] = updatingElevState
 		if len(*iPToConnMap) > 1 && len(*sortedAliveElevs) > 1 {
 			backupMsg := messages.PackMessage(messages.MsgHRAInput, (*allHallReqAndStates))
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[1].String()]
-			fmt.Println("BackupConn: ", backupConn)
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
-			//tcp.TCPSendMessage(backupConn, backupMsg)
 		}
-		//fmt.Println("Master finished handling MsgElevState")
-
 	case messages.MsgHallReq:
-		//fmt.Println("Master rceived a MsgHallReq on mdbFSMCh")
-		//fmt.Println("HallReq: ", dataMsg.(messages.HallReqMsg))
 		floor := dataMsg.(messages.HallReqMsg).Floor
 		hallButton := dataMsg.(messages.HallReqMsg).Button
 		addOrRemoveReq := dataMsg.(messages.HallReqMsg).TAddFRemove
@@ -52,34 +40,24 @@ func HandlingMessages(
 			backupMsg := messages.PackMessage(messages.MsgHRAInput, (*allHallReqAndStates))
 			backupConn := (*iPToConnMap)[(*sortedAliveElevs)[roleDistributor.Backup].String()]
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{backupConn, backupMsg}
-			// tcp.TCPSendMessage(backupConn, backupMsg)
 		}
 		var inputToHRA = messages.HRAInput{
 			HallRequests: make([][2]bool, elevio.N_FLOORS),
 			States:       make(map[string]messages.HRAElevState),
 		}
 		inputToHRA.HallRequests = (*allHallReqAndStates).HallRequests
-		//fmt.Println("All hall request and states: ", *allHallReqAndStates)
-		//fmt.Println("SortedAliveElevs: ", *sortedAliveElevs)
 		for _, ip := range *sortedAliveElevs {
 			state, exists := (*allHallReqAndStates).States[ip.String()]
 			if exists {
-				//fmt.Println("State of this ip: ", state)
 				inputToHRA.States[ip.String()] = state
 			} 
 		}
-		fmt.Println("inputToHRA: ", inputToHRA)
 		output := runHallRequestAssigner(inputToHRA)
 		jsonLightMsg := messages.PackMessage(messages.MsgHallLigths, dataMsg)
 		for ipAddr, hallRequest := range output {
 			jsonHallReqMsg := messages.PackMessage(messages.MsgAssignedHallReq, hallRequest)
-			//fmt.Println("iPToConnMap: ", *iPToConnMap)
-			//tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonHallReq)
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{(*iPToConnMap)[ipAddr], jsonHallReqMsg}
-			// fmt.Println("Master sent HallReq to elev: ", string(jsonHallReq))
 			sendNetworkMsgCh <- tcp.SendNetworkMsg{(*iPToConnMap)[ipAddr], jsonLightMsg}
-			//tcp.TCPSendMessage((*iPToConnMap)[ipAddr], jsonLightMsg)
-			// fmt.Println("Master sent LightMsg to elev: ", string(jsonLightMsg))
 		}
 	}
 }

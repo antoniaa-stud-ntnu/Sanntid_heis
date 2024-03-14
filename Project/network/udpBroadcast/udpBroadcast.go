@@ -23,7 +23,6 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, p
 			fmt.Println(err)
 			localIP = "DISCONNECTED"
 		}
-		//id = fmt.Sprintf("%s-%d", localIP, os.Getpid())
 		id = fmt.Sprintf("%s", localIP)
 	}
 	peerUpdateCh := make(chan peers.PeerUpdate)
@@ -33,7 +32,6 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, p
 	helloRx := make(chan HelloMsg)
 	go bcast.Transmitter(16565, helloTx)
 	go bcast.Receiver(16565, helloRx)
-	fmt.Println("Udp broadcasting started")
 	for {
 		newPeerUpd := <-peerUpdateCh
 		if localIPInPeers(newPeerUpd) {

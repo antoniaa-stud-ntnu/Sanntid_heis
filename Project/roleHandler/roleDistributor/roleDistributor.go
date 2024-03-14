@@ -43,16 +43,10 @@ func RoleDistributor(
 		fmt.Printf("Could not get local ip: %v\n", err)
 	}
 	localIP := net.ParseIP(localIPstr)
-	fmt.Println("RoleDistributor started")
-
 	localElevInPeers := false
 	fmt.Println(localIP, localElevInPeers)
-
-	//time.Sleep(1 * time.Second)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
-		fmt.Println("Peer Update to role, peers: ", p.Peers)
-
 		sortedIPs := make([]net.IP, 0, len(p.Peers))
 		for _, ip := range p.Peers {
 			peerIP := net.ParseIP(ip)
@@ -67,7 +61,6 @@ func RoleDistributor(
 		sort.Slice(sortedIPs, func(firstIpIndex, secondIpIndex int) bool {
 			return bytes.Compare(sortedIPs[firstIpIndex], sortedIPs[secondIpIndex]) < 0
 		})
-
 		checkRoles := func(sortedIPs []net.IP) string {
 			for ipIndex, ip := range sortedIPs {
 				var expectedRole Role
@@ -86,19 +79,14 @@ func RoleDistributor(
 			}
 			return ""
 		}
-		
 		newRole := ""
-
 		if len(p.Lost) > 0 {
 			newRole = checkRoles(sortedIPs)
 		}
-
 		if p.New != "" {
 			newRole = checkRoles(sortedIPs)
 		}
-		
 		roleAndSortedAliveElevs <- RoleAndSortedAliveElevs{newRole, sortedIPs}
 		masterIPCh <- sortedIPs[int(Master)]
-		fmt.Println("Sent updated role and sorted alive elevs to MBD_FSM", roleAndSortedAliveElevs)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const MasterPort = "20050" // endre navn eller flytte til annen fil 
+
 type EditConnMap struct {
 	Insert 		bool
 	ClientIP 	string
@@ -28,7 +28,6 @@ func EstablishMainListener(
 	var wasMainListener bool
 	for {
 		isMainListener := <- isMainListenerCh
-		fmt.Println("Am i master: ", isMainListener)
 		if isMainListener {
 			wasMainListener = true
 			go func() {
@@ -43,20 +42,15 @@ func EstablishMainListener(
 					return
 				}
 				defer listener.Close()
-				fmt.Printf("Server is listening on port %s\n", listenerPort)
 				for {
 					conn, err := listener.Accept()
 					if err != nil {
-						fmt.Printf("Could not accept connection: %s\n", err)
+						fmt.Println("Error accepting: ", err)
 						continue
 					}
 					connectionsIP := ((conn.RemoteAddr().(*net.TCPAddr)).IP).String()
-					//fmt.Printf("Master accepted new connection-%d from IP-%s \n", conn, connectionsIP)
 					(iPToConnMap)[connectionsIP] = conn
-					//fmt.Printf("iPToConnMap is updated to: IP-%s, Conn-%d", connectionsIP, conn)
 					editMastersConnMapCh <- EditConnMap{true, connectionsIP, conn}
-			
-					// Handle client connection in a goroutine
 					ctxRecieveMsg, cancelRecievMsg = context.WithCancel(context.Background())
 					go recieveMessage(conn, incommingNetworkMsgCh, ctxRecieveMsg)
 				}
@@ -65,7 +59,6 @@ func EstablishMainListener(
 				for ip, conn := range iPToConnMap {
 					_, err := conn.Read(make([]byte, 1024))
 					if err != nil {
-						fmt.Println("Deleting a conn: ", (iPToConnMap))
 						delete((iPToConnMap), ip)
 						editMastersConnMapCh <- EditConnMap{true, ip, conn}
 					}
@@ -106,7 +99,6 @@ func EstablishConnectionAndListen(
 				break
 			}
 		}
-		fmt.Println("Connected to master")
 		connCh <- conn
 		ctxRecieveMsg, cancelRecievMsg = context.WithCancel(context.Background())
 		go recieveMessage(conn, incommingNetworkMsgCh, ctxRecieveMsg)
@@ -128,7 +120,7 @@ func recieveMessage(
 			if err != nil {
 				conn.Close()
 				if err == io.EOF {
-					fmt.Println("Client closed the connection.")
+					fmt.Println("Client closed the connection")
 				} else {
 					fmt.Println("Error:", err)
 				}
@@ -145,12 +137,11 @@ type SendNetworkMsg struct {
 	Message 	[]byte
 }
 
-func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterconn ch)
+func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) {
 	for {
 		sendNetworkMsg := <-sendNetworkMsgCh
 		conn := sendNetworkMsg.RecieverConn
 		message := sendNetworkMsg.Message
-		// Send data to the other side of the connection
 		_, err := conn.Write(message)
 		if err != nil {
 			if err == io.EOF {

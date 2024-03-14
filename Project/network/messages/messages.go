@@ -49,7 +49,6 @@ func PackMessage(structType string, msg interface{}) []byte {
 		Data: msgJsonBytes,
 	}
 	finalJSONBytes, _ := json.Marshal(dataToSend)
-	//fmt.Println(string(finalJSONBytes), "Structtype: ", structType)
 	finalJSONBytes = append(finalJSONBytes, '&')
 	return finalJSONBytes
 }
@@ -104,7 +103,6 @@ func DistributeMessages(
 				err := json.Unmarshal([]byte(jsonObject), &dataWithTypeMsg)
 				if err != nil {
 					fmt.Println("Error decoding json:", err)
-					fmt.Println("jsonObject: ", jsonObject)
 					break
 				}
 				switch dataWithTypeMsg.Type {
@@ -115,6 +113,5 @@ func DistributeMessages(
 				}
 			}
 		}
-		
 	}
 }

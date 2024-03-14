@@ -12,33 +12,22 @@ import (
 	"net"
 )
 
-func ElevatorProcess() {
-
-}
-
 func main() {
-
 	elevio.Init("localhost:15657", elevio.N_FLOORS)
-
+	const masterPort = "20050"
 	buttonsCh := make(chan elevio.ButtonEvent)
 	floorsCh := make(chan int)
 	obstrCh := make(chan bool)
-
 	peerUpdateToRoleDistributorCh := make(chan peers.PeerUpdate)
 	roleAndSortedAliveElevsCh := make(chan roleDistributor.RoleAndSortedAliveElevs, 5)
 	isMasterCh := make(chan bool, 5)
 	editMastersConnMapCh := make(chan tcp.EditConnMap, 5)
-
 	masterIPCh := make(chan net.IP)
 	masterConnCh := make(chan net.Conn)
-	//quitOldRecieverCh := make(chan bool)
-
 	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg, 5)
 	incommingNetworkMsgCh := make(chan []byte, 15)
-
 	toSingleElevFSMCh := make(chan []byte, 5)
 	toRoleFSMCh := make(chan []byte, 5)
-
 	peerTxEnable := make(chan bool)
 
 	go elevio.PollRequestButtons(buttonsCh)
@@ -54,19 +43,12 @@ func main() {
 	go udpBroadcast.StartPeerBroadcasting(peerUpdateToRoleDistributorCh, peerTxEnable)
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, roleAndSortedAliveElevsCh, masterIPCh)
 	go roleFSM.RoleFSM(roleAndSortedAliveElevsCh, toRoleFSMCh, sendNetworkMsgCh, isMasterCh, editMastersConnMapCh)
-
-	go tcp.EstablishMainListener(isMasterCh, tcp.MasterPort, editMastersConnMapCh, incommingNetworkMsgCh)
-	go tcp.EstablishConnectionAndListen(masterIPCh, tcp.MasterPort, masterConnCh, incommingNetworkMsgCh)
-	//go tcp.RecieveMessage(masterConnCh, jsonMessageCh, quitOldRecieverCh)
+	go tcp.EstablishMainListener(isMasterCh, masterPort, editMastersConnMapCh, incommingNetworkMsgCh)
+	go tcp.EstablishConnectionAndListen(masterIPCh, masterPort, masterConnCh, incommingNetworkMsgCh)
 	go tcp.SendMessage(sendNetworkMsgCh)
-
-	//tcp send msg(to master, masterconn ch)
-	//go tcp.TCPRecieveMessage(masterConn, jsonMessageCh, quitCh)
 	go messages.DistributeMessages(incommingNetworkMsgCh, toSingleElevFSMCh, toRoleFSMCh)
-
-	//ta in to master ch i FSM
 	go localElevatorHandler.LocalElevatorHandler(buttonsCh, floorsCh, obstrCh, masterConnCh, sendNetworkMsgCh, toSingleElevFSMCh, peerTxEnable)
-
+	
 	for {
 		select {}
 	}
