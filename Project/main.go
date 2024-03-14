@@ -34,7 +34,7 @@ func main() {
 	//quitOldRecieverCh := make(chan bool)
 
 	sendNetworkMsgCh := make(chan tcp.SendNetworkMsg, 5)
-	incommingNetworkMsgCh := make(chan []byte, 5)
+	incommingNetworkMsgCh := make(chan []byte, 15)
 
 	toSingleElevFSMCh := make(chan []byte, 5)
 	toRoleFSMCh := make(chan []byte, 5)
