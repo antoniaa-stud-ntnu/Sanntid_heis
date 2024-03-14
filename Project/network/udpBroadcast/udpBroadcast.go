@@ -23,7 +23,7 @@ func StartPeerBroadcasting(peerUpdateToPrimaryHandlerCh chan peers.PeerUpdate, p
 			fmt.Println(err)
 			localIP = "DISCONNECTED"
 		}
-		id = fmt.Sprintf("%s", localIP)
+		id = string(localIP)
 	}
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	go peers.Transmitter(15645, id, peerTxEnable)

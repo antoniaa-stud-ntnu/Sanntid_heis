@@ -44,7 +44,6 @@ func RoleDistributor(
 	}
 	localIP := net.ParseIP(localIPstr)
 	localElevInPeers := false
-	fmt.Println(localIP, localElevInPeers)
 	for {
 		p := <-peerUpdateToRoleDistributorCh
 		sortedIPs := make([]net.IP, 0, len(p.Peers))
@@ -72,7 +71,6 @@ func RoleDistributor(
 				default:
 					expectedRole = Dummy
 				}
-
 				if ip.Equal(localIP) {
 					return expectedRole.String()
 				}
