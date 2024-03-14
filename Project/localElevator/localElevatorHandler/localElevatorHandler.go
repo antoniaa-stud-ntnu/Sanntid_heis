@@ -59,16 +59,20 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 				// fmt.Println("Sent hall request to master: ", button.Floor, button.Button)
 			}
 		case floor := <-floorsCh:
-			msgElevState.ElevState.Floor = floor
-			//fmt.Println("To master elevState: ", msgElevState.ElevState)
-			sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
-			// tcp.TCPSendMessage(masterConn, sendingBytes)
-			toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
-
 			removingHallButtons := OnFloorArrival(floor, peerTxEnable)
+
+			msgElevState.ElevState.Floor = floor
+			msgElevState.ElevState.CabRequests[floor] = false
+
+
+			sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
+			toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
+			
+			
 			for btnIndex, btnValue := range removingHallButtons {
 				buttonType := elevio.ButtonType(btnIndex)
 				if btnValue {
+					
 					removeHallReq := messages.HallReqMsg{false, elev.Floor, buttonType}
 					sendingBytes := messages.PackMessage(messages.MsgHallReq, removeHallReq)
 					//tcp.TCPSendMessage(masterConn, sendingBytes)
@@ -76,6 +80,8 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 					//fmt.Println("Sending to master that hall req is complete: ", string(sendingBytes))
 				}
 			}
+			
+			
 
 			//elevator.ElevatorPrint(elev)
 
@@ -100,6 +106,7 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 					}
 				}
 				//elevator.ElevatorPrint(elev)
+				fmt.Println("Requevec hall request, all requests now: ", elev.Requests)
 			case messages.MsgHallLigths:
 				elevio.SetButtonLamp(data.(messages.HallReqMsg).Floor, data.(messages.HallReqMsg).Button, data.(messages.HallReqMsg).TAddFRemove)
 
@@ -116,11 +123,13 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 		case <-doorOpenTimer.C:
 			fmt.Println("Door timed out")
 			OnDoorTimeout(peerTxEnable)
+			//doorOpenTimer.Reset(24 * time.Hour)
 
 		case <-motorStopTimer.C:
 			fmt.Println("Motor timed<-motorStopTimer.C: out")
 			peerTxEnable <- false
 			fmt.Println("Not visible in peers")
+			motorStopTimer.Reset(24 * time.Hour)
 		}
 	}
 }
@@ -188,7 +197,7 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 		case elevator.Idle:
 			//doorOpenTimer.Stop()
 			//doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
-			break
+			//motorStopTimer.Reset(24 * time.Hour)
 		}
 	}
 
@@ -203,7 +212,8 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 	elevio.SetFloorIndicator(elev.Floor)
 
 	// Reset motor timer
-	//startMotorStopTimer(time.Duration(elev.Config.MotorStopDuration) * time.Second, peerTxEnable)
+	fmt.Println("Reset motor timer")
+	startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 
 	switch elev.State {
 	case elevator.Moving:
@@ -216,6 +226,7 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 			elevio.SetDoorOpenLamp(true)
 			//fmt.Println("The elevators request list at this floor is: ", elev.Requests[newFloor])
 			elev, removingHallButtons = requests.ClearAtCurrentFloor(elev)
+			fmt.Println("The elevators request cab request at this floor is: ", elev.Requests[newFloor][2])
 
 			//if !doorOpenTimer.Stop() {
 			//	<-doorOpenTimer.C
@@ -224,8 +235,9 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
+			//motorStopTimer.Reset(24 * time.Hour)
 		} else {
-			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
+			//startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 		}
 	default:
 		break
@@ -246,6 +258,7 @@ func OnDoorTimeout(peerTxEnable chan bool) {
 			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			break
 		}
+
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
@@ -259,21 +272,26 @@ func OnDoorTimeout(peerTxEnable chan bool) {
 			elev, _ = requests.ClearAtCurrentFloor(elev)
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
-			break
+
+			
 		case elevator.Moving:
 			elevio.SetDoorOpenLamp(false)
 			elevio.SetMotorDirection(elev.Dirn)
 			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
-			break
+			
 		case elevator.Idle:
 			elevio.SetDoorOpenLamp(false)
+			fmt.Println("Setting motor dir to: ", elev.Dirn)
 			elevio.SetMotorDirection(elev.Dirn)
-			motorStopTimer.Stop()
-			break
+			fmt.Println("Inni idle, restting timer")
+			//startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
+			motorStopTimer.Reset(24 * time.Hour)
+			
+			
 		}
-		break
+		
 	default:
-		break
+		
 	}
 }
 
