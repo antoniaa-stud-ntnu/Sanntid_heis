@@ -157,25 +157,21 @@ func getObstruction() bool {
 func read(in [4]byte) [4]byte {
 	_mtx.Lock()
 	defer _mtx.Unlock()
-
 	_, err := _conn.Write(in[:])
 	if err != nil {
 		panic("Lost connection to Elevator Server")
 	}
-
 	var out [4]byte
 	_, err = _conn.Read(out[:])
 	if err != nil {
 		panic("Lost connection to Elevator Server")
 	}
-
 	return out
 }
 
 func write(in [4]byte) {
 	_mtx.Lock()
 	defer _mtx.Unlock()
-
 	_, err := _conn.Write(in[:])
 	if err != nil {
 		panic("Lost connection to Elevator Server")
