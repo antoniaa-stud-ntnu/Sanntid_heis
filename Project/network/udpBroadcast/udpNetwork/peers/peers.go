@@ -26,6 +26,7 @@ func Transmitter(port int, id string, transmitEnable <-chan bool) {
 	for {
 		select {
 		case enable = <-transmitEnable:
+			fmt.Println("udp broadcast is now: ", enable)
 		case <-time.After(interval):
 		}
 		if enable {

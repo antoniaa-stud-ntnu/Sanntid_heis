@@ -290,7 +290,9 @@ func main() {
 		fmt.Println("MasterIndex: ", int(Master))
 		//var conn net.Conn
 		//fmt.Println(conn)
-		var removingHallButtons [2]bool = nil
+		var removingHallButtons [2]bool
 		fmt.Println(removingHallButtons)
+	case "4":
+		fmt.Println("HraInput: ", input)
 	}
 }

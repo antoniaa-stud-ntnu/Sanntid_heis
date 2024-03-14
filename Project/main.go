@@ -55,7 +55,7 @@ func main() {
 	go roleDistributor.RoleDistributor(peerUpdateToRoleDistributorCh, roleAndSortedAliveElevsCh, masterIPCh)
 	go roleFSM.RoleFSM(roleAndSortedAliveElevsCh, toRoleFSMCh, sendNetworkMsgCh, isMasterCh, editMastersConnMapCh)
 
-	go tcp.SetUpMaster(isMasterCh, tcp.MasterPort, editMastersConnMapCh, incommingNetworkMsgCh)
+	go tcp.EstablishMainListener(isMasterCh, tcp.MasterPort, editMastersConnMapCh, incommingNetworkMsgCh)
 	go tcp.EstablishConnectionAndListen(masterIPCh, tcp.MasterPort, masterConnCh, incommingNetworkMsgCh)
 	//go tcp.RecieveMessage(masterConnCh, jsonMessageCh, quitOldRecieverCh)
 	go tcp.SendMessage(sendNetworkMsgCh)

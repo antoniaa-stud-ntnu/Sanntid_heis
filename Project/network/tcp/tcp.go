@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const MasterPort = "20019"
+const MasterPort = "20050" // endre navn eller flytte til annen fil 
 
 type EditConnMap struct {
 	Insert 		bool
@@ -18,23 +18,20 @@ type EditConnMap struct {
 }
 
 
-
-func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh chan EditConnMap, incommingNetworkMsgCh chan []byte) {
+func EstablishMainListener(isMainListenerCh chan bool, listenerPort string, editMastersConnMapCh chan EditConnMap, incommingNetworkMsgCh chan []byte) {
 	var ctxRecieveMsg context.Context
 	var cancelRecievMsg context.CancelFunc
-
 	iPToConnMap := make(map[string]net.Conn)
-	var wasMaster bool
-	
+	var wasMainListener bool
 	
 	for {
-		isMaster := <- isMasterCh
-		fmt.Println("Am i master: ", isMaster)
-		if isMaster {
-			wasMaster = true
+		isMainListener := <- isMainListenerCh
+		fmt.Println("Am i master: ", isMainListener)
+		if isMainListener {
+			wasMainListener = true
 			//go ListenForConnectionsAndHandle(masterPort, &iPToConnMap, editMastersConnMapCh, incommingNetworkMsgCh, quitRecieverCh)
 			go func() {
-				tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+masterPort)
+				tcpAddr, err := net.ResolveTCPAddr("tcp4", ":"+listenerPort)
 				if err != nil {
 					fmt.Printf("Could not resolve address: %s\n", err)
 					os.Exit(1)
@@ -46,7 +43,7 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 				}
 				defer listener.Close()
 			
-				fmt.Printf("Server is listening on port %s\n", masterPort)
+				fmt.Printf("Server is listening on port %s\n", listenerPort)
 			
 				for {
 					conn, err := listener.Accept()
@@ -73,14 +70,14 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 					if err != nil {
 						fmt.Println("Deleting a conn: ", (iPToConnMap))
 						delete((iPToConnMap), ip)
+						editMastersConnMapCh <- EditConnMap{true, ip, conn}
 					}
 				}
 			}()
 		} else {
-			if wasMaster {
+			if wasMainListener {
 				cancelRecievMsg()
-				
-				wasMaster = false
+				wasMainListener = false
 			}
 			
 		}
@@ -89,12 +86,9 @@ func SetUpMaster(isMasterCh chan bool, masterPort string, editMastersConnMapCh c
 
 
 
-// Recieving messages and sending them on a channel for to be handeled else where
-
 func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net.Conn, incommingNetworkMsgCh chan []byte) {
 	var ctxRecieveMsg context.Context
 	var cancelRecievMsg context.CancelFunc
-	
 	var conn net.Conn
 	for {
 		IP := <-ipCh
@@ -102,14 +96,11 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 		if err != nil {
 			fmt.Printf("Could not resolve address: %s\n", err)
 		}
-
 		if conn != nil {
 			//conn.Close()
 			//quitOldReciever <- true
 			cancelRecievMsg()
 		}
-
-
 		for {
 			conn, err = net.Dial("tcp", tcpAddr.String())
 			if err != nil {
@@ -127,8 +118,8 @@ func EstablishConnectionAndListen(ipCh chan net.IP, port string, connCh chan net
 	}
 }
 
-func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg context.Context) {
 
+func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg context.Context) {
 	for {
 		select {
 		case <- ctxRecieveMsg.Done():
@@ -147,7 +138,6 @@ func recieveMessage(conn net.Conn, incommingMsgCh chan<- []byte, ctxRecieveMsg c
 				}
 				return
 			}
-
 		msg := make([]byte, data)
 		copy(msg, buffer[:data])
 		incommingMsgCh <- msg
@@ -159,6 +149,7 @@ type SendNetworkMsg struct {
 	RecieverConn net.Conn
 	Message 	[]byte
 }
+
 
 func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterconn ch)
 	for {
@@ -176,8 +167,8 @@ func SendMessage(sendNetworkMsgCh chan SendNetworkMsg) { // (to master, masterco
 			return
 		}
 	}
-	
 }
+
 
 /*
 tcpFSM

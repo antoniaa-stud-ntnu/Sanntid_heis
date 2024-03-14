@@ -30,6 +30,9 @@ var msgElevState = messages.ElevStateMsg{
 	ElevState: hraElevState,
 }
 
+//var doorOpenTimerCh <- chan time.Time
+
+
 func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, obstrCh chan bool, masterConnCh chan net.Conn, toNetworkCh chan tcp.SendNetworkMsg, toFSMCh chan []byte, peerTxEnable chan bool) {
 	masterConn := <-masterConnCh
 
@@ -43,7 +46,7 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 		case button := <-buttonsCh:
 			if button.Button == elevio.Cab {
 				msgElevState.ElevState.CabRequests[button.Floor] = true
-
+				//fmt.Println("To master elevState: ", msgElevState.ElevState)
 				sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
 				toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
 
@@ -57,6 +60,7 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 			}
 		case floor := <-floorsCh:
 			msgElevState.ElevState.Floor = floor
+			//fmt.Println("To master elevState: ", msgElevState.ElevState)
 			sendingBytes := messages.PackMessage(messages.MsgElevState, msgElevState)
 			// tcp.TCPSendMessage(masterConn, sendingBytes)
 			toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
@@ -69,7 +73,7 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 					sendingBytes := messages.PackMessage(messages.MsgHallReq, removeHallReq)
 					//tcp.TCPSendMessage(masterConn, sendingBytes)
 					toNetworkCh <- tcp.SendNetworkMsg{masterConn, sendingBytes}
-					fmt.Println("Sending to master that hall req is complete: ", string(sendingBytes))
+					//fmt.Println("Sending to master that hall req is complete: ", string(sendingBytes))
 				}
 			}
 
@@ -79,8 +83,8 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 			fmt.Printf("Obstruction is %+v\n", obstr)
 			OnObstruction(obstr)
 			//elevator.ElevatorPrint(elev)
-		case toFSM := <-toFSMCh:
-			msgType, data := messages.UnpackMessage(toFSM)
+		case msgFromNetwork := <-toFSMCh:
+			msgType, data := messages.UnpackMessage(msgFromNetwork)
 			switch msgType {
 			case messages.MsgAssignedHallReq:
 				newHallRequests := data.([][2]bool) // Dette er ikke nodvendig egentlig
@@ -104,16 +108,19 @@ func LocalElevatorHandler(buttonsCh chan elevio.ButtonEvent, floorsCh chan int, 
 					elev.Requests[floor][elevio.Cab] = data.([]bool)[floor]
 				}
 			}
-		case masterConn = <-masterConnCh:
+		case newMasterConn := <-masterConnCh:
+			masterConn = newMasterConn
 			fmt.Println("New masterConn is: ", masterConn)
 
+		//case <-doorOpenTimerCh:
 		case <-doorOpenTimer.C:
 			fmt.Println("Door timed out")
 			OnDoorTimeout(peerTxEnable)
 
 		case <-motorStopTimer.C:
-			fmt.Println("Motor timed out")
+			fmt.Println("Motor timed<-motorStopTimer.C: out")
 			peerTxEnable <- false
+			fmt.Println("Not visible in peers")
 		}
 	}
 }
@@ -150,6 +157,8 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 		if requests.ShouldClearImmediately(elev, btnFloor, btnType) {
 			//timer.Start(elev.Config.DoorOpenDuration)
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
+			// motorstoptimer ogaå?
+			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 		} else {
 			elev.Requests[btnFloor][btnType] = true
 		}
@@ -167,8 +176,9 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 		case elevator.DoorOpen:
 			elevio.SetDoorOpenLamp(true)
 			//timer.Start(elev.Config.DoorOpenDuration)
-
+			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
+			// motorstoptimer ogaå?
 			elev, _ = requests.ClearAtCurrentFloor(elev)
 
 		case elevator.Moving:
@@ -176,6 +186,8 @@ func OnRequestButtonPress(btnFloor int, btnType elevio.ButtonType, peerTxEnable 
 			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
 
 		case elevator.Idle:
+			//doorOpenTimer.Stop()
+			//doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			break
 		}
 	}
@@ -209,6 +221,7 @@ func OnFloorArrival(newFloor int, peerTxEnable chan bool) [2]bool {
 			//	<-doorOpenTimer.C
 			//}
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
+			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			SetAllCabLights(elev)
 			elev.State = elevator.DoorOpen
 		} else {
@@ -230,28 +243,35 @@ func OnDoorTimeout(peerTxEnable chan bool) {
 			//	<-doorOpenTimer.C
 			//}
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
+			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			break
 		}
 		var pair requests.DirnBehaviourPair = requests.ChooseDirection(elev)
 		elev.Dirn = pair.Dirn
 		elev.State = pair.State
-		startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
+		
 
 		switch elev.State {
 		case elevator.DoorOpen:
 			//timer.Start(elev.Config.DoorOpenDuration)
 			doorOpenTimer.Reset(time.Duration(elev.Config.DoorOpenDuration))
+			//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 			elev, _ = requests.ClearAtCurrentFloor(elev)
 			// SetAllLights(elev)
 			SetAllCabLights(elev)
+			break
 		case elevator.Moving:
 			elevio.SetDoorOpenLamp(false)
 			elevio.SetMotorDirection(elev.Dirn)
-
+			startMotorStopTimer(elev.Config.MotorStopDuration, peerTxEnable)
+			break
 		case elevator.Idle:
 			elevio.SetDoorOpenLamp(false)
 			elevio.SetMotorDirection(elev.Dirn)
+			motorStopTimer.Stop()
+			break
 		}
+		break
 	default:
 		break
 	}
@@ -275,6 +295,11 @@ func motorAndDoorTimerInit() {
 	// Initialize motor timer
 	motorStopTimer = time.NewTimer(24 * time.Hour)
 	doorOpenTimer = time.NewTimer(24 * time.Hour)
+
+	//motorStopTimer.Stop()
+	//doorOpenTimer.Stop()
+	//doorOpenTimer = time.NewTimer(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
+	//doorOpenTimerCh = time.After(time.Duration(elev.Config.DoorOpenDuration) * time.Second)
 	//Sette peer til true??
 }
 
